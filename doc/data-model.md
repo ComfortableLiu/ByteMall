@@ -13,15 +13,15 @@
 
 ## 2. 数据归属总览
 
-| 服务/存储 | 表或对象 |
-| --- | --- |
-| user-service | `user_account`、`user_address`、`merchant`、`merchant_application` |
-| product-service | `category`、`product_spu`、`product_sku`、`product_image`、`outbox_event` |
-| order-service | `order_main`、`order_item`、`order_status_history`、`outbox_event`、`inbox_event` |
-| stock-service | `stock_main`、`stock_reservation`、`stock_reservation_item`、`stock_log`、`outbox_event`、`inbox_event` |
-| pay-service | `payment_order`、`payment_transaction`、`refund_order`、`reconciliation_record`、`outbox_event`、`inbox_event` |
-| cart-service / Redis | `cart:{userId}` Hash |
-| search-service / ES | `product-search-v*` 索引 |
+| 服务/存储 | 负责人  | 表或对象 |
+| --- |---| --- |
+| user-service  | 鑫哥  | `user_account`、`user_address`、`merchant`、`merchant_application` |
+| product-service | 燕子  | `category`、`product_spu`、`product_sku`、`product_image`、`outbox_event` |
+| order-service | 鑫哥  | `order_main`、`order_item`、`order_status_history`、`outbox_event`、`inbox_event` |
+| stock-service |   | `stock_main`、`stock_reservation`、`stock_reservation_item`、`stock_log`、`outbox_event`、`inbox_event` |
+| pay-service |   | `payment_order`、`payment_transaction`、`refund_order`、`reconciliation_record`、`outbox_event`、`inbox_event` |
+| cart-service  | 燕子 | `cart:{userId}` Hash |
+| search-service |   | `product-search-v*` 索引 |
 
 Outbox/Inbox 表逻辑相同但由各服务私有，不能跨服务共用一张物理表。
 

@@ -1,0 +1,11 @@
+server:
+  port: 3001
+
+spring:
+  application:
+    name: stock-service
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_DATABASE:byte-mail}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
