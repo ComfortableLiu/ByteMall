@@ -1,0 +1,94 @@
+:root {
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  color: #172033;
+  background: #f7f7f2;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --color-bg: #f7f7f2;
+  --color-surface: #fff;
+  --color-ink: #172033;
+  --color-muted: #667085;
+  --color-brand: #3155e7;
+  --color-brand-dark: #2344bd;
+  --color-accent: #e65332;
+  --color-line: #e4e7ec;
+  --color-success: #16794c;
+  --color-danger: #b42318;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --shadow-soft: 0 18px 50px rgb(23 32 51 / 8%);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-inline-size: 320px; min-block-size: 100dvh; }
+body, button, input, select, textarea { font: inherit; }
+button, input, select, textarea { font-size: 1rem; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--color-brand); }
+img { display: block; max-inline-size: 100%; }
+svg { flex-shrink: 0; }
+p { line-height: 1.7; }
+::selection { color: #fff; background: var(--color-brand); }
+:where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid #7c92ff; outline-offset: 3px; }
+
+.container { inline-size: min(1280px, calc(100% - 48px)); margin-inline: auto; }
+.button { min-block-size: 48px; padding: .75rem 1.25rem; border: 1px solid transparent; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; font-weight: 650; transition: background .2s, transform .2s, border-color .2s; }
+.button:hover:not(:disabled) { transform: translateY(-1px); }
+.button-primary { color: #fff; background: var(--color-brand); }
+.button-primary:hover:not(:disabled) { color: #fff; background: var(--color-brand-dark); }
+.button-secondary { color: var(--color-ink); background: #fff; border-color: var(--color-line); }
+.button-ghost { color: var(--color-ink); background: transparent; }
+.button-danger { color: #fff; background: var(--color-danger); }
+.button-small { min-block-size: 38px; padding: .45rem .9rem; font-size: .875rem; }
+.text-button { padding: 0; color: var(--color-brand); border: 0; background: none; }
+.icon-button { inline-size: 48px; block-size: 48px; display: inline-grid; place-items: center; border: 0; border-radius: 50%; color: inherit; background: transparent; }
+.icon-button:hover { background: rgb(49 85 231 / 8%); }
+
+.visually-hidden:where(:not(:focus-within, :active)) { position: absolute !important; clip-path: inset(50%) !important; overflow: hidden !important; inline-size: 1px !important; block-size: 1px !important; margin: -1px !important; padding: 0 !important; border: 0 !important; white-space: nowrap !important; }
+.skip-link { position: fixed; inset-block-start: 12px; inset-inline-start: 12px; z-index: 9999; padding: .75rem 1rem; color: #fff; background: var(--color-brand); border-radius: 8px; transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
+
+.ui-state { min-block-size: 260px; padding: 3rem 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed #ccd2dd; border-radius: var(--radius-md); background: rgb(255 255 255 / 60%); }
+.ui-state h2 { margin: .75rem 0 0; font-size: 1.25rem; }
+.ui-state p { max-inline-size: 480px; margin: .5rem 0 1rem; color: var(--color-muted); }
+.ui-error { border-color: #f1b7b1; }
+.empty-symbol { inline-size: 64px; block-size: 64px; display: grid; place-items: center; color: var(--color-brand); border: 2px solid currentColor; border-radius: 50%; font-size: 2rem; }
+.loading-spinner { inline-size: 32px; block-size: 32px; border: 3px solid #dbe1f7; border-block-start-color: var(--color-brand); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.price { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; color: var(--color-accent); font-weight: 750; font-variant-numeric: tabular-nums; }
+.price-large { font-size: clamp(1.75rem, 3vw, 2.5rem); }
+.price del { color: var(--color-muted); font-size: .8em; font-weight: 400; }
+.status-badge { display: inline-flex; align-items: center; min-block-size: 28px; padding: .2rem .65rem; border-radius: 999px; color: #344054; background: #eef1f5; font-size: .8rem; font-weight: 650; white-space: nowrap; }
+.status-on-sale, .status-completed, .status-success { color: #12613d; background: #e5f5ec; }
+.status-pending-payment, .status-pending, .status-draft { color: #995114; background: #fff2d9; }
+.status-pending-shipment { color: #2447ba; background: #e8edff; }
+.status-shipped { color: #17677a; background: #e2f4f7; }
+.status-cancelled, .status-off-sale, .status-closed { color: #667085; background: #eef0f2; }
+
+.quantity-stepper { display: inline-grid; grid-template-columns: 42px 58px 42px; align-items: center; border: 1px solid var(--color-line); border-radius: 10px; overflow: hidden; background: #fff; }
+.quantity-stepper button { block-size: 44px; border: 0; background: #f8f9fb; font-size: 1.2rem; }
+.quantity-stepper input { inline-size: 58px; block-size: 44px; padding: 0; text-align: center; border: 0; background: #fff; appearance: textfield; }
+.quantity-stepper input::-webkit-inner-spin-button { appearance: none; }
+.pagination { margin-block: 2rem; display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.pagination span { color: var(--color-muted); }
+
+@media (max-width: 767px) {
+  .container { inline-size: min(100% - 32px, 1280px); }
+  .button { min-block-size: 48px; }
+  .pagination { gap: .5rem; }
+  .pagination .button { padding-inline: .8rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea):focus-visible { outline: 3px solid Highlight; }
+}

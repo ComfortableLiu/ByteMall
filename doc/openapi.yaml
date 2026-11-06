@@ -1,0 +1,1660 @@
+openapi: 3.1.0
+info:
+  title: ByteMall API
+  version: 1.0.0
+  description: 买家、商家与内部服务的 REST 契约。金额均为人民币分，ID 与时间按文档约定序列化。
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+    description: 注册、登录和令牌生命周期。
+  - name: User
+    description: 用户资料、地址、商家入驻和店铺。
+  - name: Product
+    description: 买家商品查询与商家 SPU/SKU 管理。
+  - name: Search
+    description: 商品分词搜索、筛选、聚合和建议。
+  - name: Cart
+    description: 买家购物车及选中状态。
+  - name: Order
+    description: 买家订单与商家履约状态机。
+  - name: Stock
+    description: 可售库存、商家调整和内部预扣。
+  - name: Payment
+    description: 支付单、渠道回调和对账。
+  - name: Internal
+    description: 仅限服务身份或支付渠道调用的内部契约。
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      security: []
+      summary: 注册买家账号
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      security: []
+      summary: 账号密码登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      security: []
+      summary: 刷新并旋转令牌
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string, minLength: 16 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 新令牌
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: 注销当前会话
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '204': { description: 已注销 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /users/me:
+    get:
+      tags: [User]
+      operationId: getCurrentUser
+      summary: 当前用户资料
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 用户资料
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [User]
+      operationId: updateCurrentUser
+      summary: 更新当前用户资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                nickname: { type: string, minLength: 1, maxLength: 60 }
+                avatarUrl: { type: string, format: uri }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的用户
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /users/me/addresses:
+    get:
+      tags: [User]
+      operationId: listAddresses
+      summary: 当前用户地址列表
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 地址列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressListResponse' }
+    post:
+      tags: [User]
+      operationId: createAddress
+      summary: 新增地址
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddressInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 地址已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /users/me/addresses/{addressId}:
+    parameters:
+      - $ref: '#/components/parameters/AddressId'
+    patch:
+      tags: [User]
+      operationId: updateAddress
+      summary: 更新本人地址
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddressInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的地址
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [User]
+      operationId: deleteAddress
+      summary: 删除本人地址
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '204': { description: 已删除 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /users/me/addresses/{addressId}/default:
+    parameters:
+      - $ref: '#/components/parameters/AddressId'
+    post:
+      tags: [User]
+      operationId: setDefaultAddress
+      summary: 设为默认地址
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 默认地址已更新
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /merchants/applications:
+    post:
+      tags: [User]
+      operationId: applyMerchant
+      summary: 提交商家入驻申请
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MerchantApplicationInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 申请已提交
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MerchantApplicationResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /merchants/applications/current:
+    get:
+      tags: [User]
+      operationId: getCurrentMerchantApplication
+      summary: 当前用户最新入驻申请
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 最新申请，无申请时 data 为 null
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        anyOf:
+                          - $ref: '#/components/schemas/MerchantApplication'
+                          - type: 'null'
+  /categories:
+    get:
+      tags: [Product]
+      operationId: listCategories
+      security: []
+      summary: 启用分类列表
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 分类列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryListResponse' }
+  /products:
+    get:
+      tags: [Product]
+      operationId: listProducts
+      security: []
+      summary: 在售商品基础列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 商品分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPageResponse' }
+  /products/{spuId}:
+    parameters:
+      - $ref: '#/components/parameters/SpuId'
+    get:
+      tags: [Product]
+      operationId: getProduct
+      security: []
+      summary: 在售商品详情
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 商品详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /search/products:
+    get:
+      tags: [Search]
+      operationId: searchProducts
+      security: []
+      summary: 分词搜索、筛选与聚合
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: brand
+          in: query
+          schema: { type: string }
+        - name: minPrice
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: maxPrice
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: sort
+          in: query
+          schema: { $ref: '#/components/schemas/ProductSort' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 搜索结果和聚合
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /search/suggestions:
+    get:
+      tags: [Search]
+      operationId: getSearchSuggestions
+      security: []
+      summary: 搜索建议
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 50 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 最多十条建议
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        maxItems: 10
+                        items:
+                          type: object
+                          required: [text]
+                          properties:
+                            text: { type: string }
+  /cart:
+    get:
+      tags: [Cart]
+      operationId: getCart
+      summary: 当前购物车
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 购物车及实时商品摘要
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartResponse' }
+  /cart/items:
+    post:
+      tags: [Cart]
+      operationId: addCartItem
+      summary: 添加或合并购物车项
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CartItemInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 更新后的购物车
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /cart/items/{skuId}:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    patch:
+      tags: [Cart]
+      operationId: updateCartItem
+      summary: 修改数量或选中状态
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                quantity: { type: integer, minimum: 1, maximum: 999 }
+                selected: { type: boolean }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的购物车
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Cart]
+      operationId: deleteCartItem
+      summary: 删除购物车项
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '204': { description: 已删除或原本不存在 }
+  /cart/selection:
+    post:
+      tags: [Cart]
+      operationId: selectCartItems
+      summary: 批量修改选中状态
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skuIds, selected]
+              properties:
+                skuIds:
+                  type: array
+                  items: { type: string }
+                selected: { type: boolean }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的购物车
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartResponse' }
+  /orders:
+    get:
+      tags: [Order]
+      operationId: listOrders
+      summary: 当前买家订单
+      parameters:
+        - $ref: '#/components/parameters/OrderStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 订单分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPageResponse' }
+    post:
+      tags: [Order]
+      operationId: createOrder
+      summary: 重新定价、预扣库存并创建订单
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 待支付订单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /orders/{orderNo}:
+    parameters:
+      - $ref: '#/components/parameters/OrderNo'
+    get:
+      tags: [Order]
+      operationId: getOrder
+      summary: 本人订单详情
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 订单详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /orders/{orderNo}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrderNo'
+    post:
+      tags: [Order]
+      operationId: cancelOrder
+      summary: 取消待支付订单并触发库存回补
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 200 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 已取消订单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /orders/{orderNo}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/OrderNo'
+    post:
+      tags: [Order]
+      operationId: confirmOrder
+      summary: 确认收货
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 已完成订单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /merchant/products:
+    get:
+      tags: [Product]
+      operationId: listMerchantProducts
+      summary: 当前商家商品
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ProductStatus' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 商品分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPageResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Product]
+      operationId: createMerchantProduct
+      summary: 创建 SPU 和 SKU
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 商品已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /merchant/products/{spuId}:
+    parameters:
+      - $ref: '#/components/parameters/SpuId'
+    get:
+      tags: [Product]
+      operationId: getMerchantProduct
+      summary: 当前商家商品详情
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 商品详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Product]
+      operationId: updateMerchantProduct
+      summary: 乐观锁更新商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的商品
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /merchant/products/{spuId}/status:
+    parameters:
+      - $ref: '#/components/parameters/SpuId'
+    post:
+      tags: [Product]
+      operationId: updateMerchantProductStatus
+      summary: 上架或下架商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, version]
+              properties:
+                status: { type: string, enum: [ON_SALE, OFF_SALE] }
+                version: { type: integer, minimum: 0 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的商品
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /merchant/orders:
+    get:
+      tags: [Order]
+      operationId: listMerchantOrders
+      summary: 当前商家订单
+      parameters:
+        - $ref: '#/components/parameters/OrderStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 订单分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPageResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /merchant/orders/{orderNo}:
+    parameters:
+      - $ref: '#/components/parameters/OrderNo'
+    get:
+      tags: [Order]
+      operationId: getMerchantOrder
+      summary: 当前商家订单详情
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 订单详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /merchant/orders/{orderNo}/shipments:
+    parameters:
+      - $ref: '#/components/parameters/OrderNo'
+    post:
+      tags: [Order]
+      operationId: shipMerchantOrder
+      summary: 为待发货订单填写物流并发货
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carrier, trackingNo]
+              properties:
+                carrier: { type: string, minLength: 1, maxLength: 60 }
+                trackingNo: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 已发货订单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /stocks/skus/{skuId}:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [Stock]
+      operationId: getPublicStock
+      security: []
+      summary: SKU 可售库存快照
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 可售库存
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /merchant/stocks:
+    get:
+      tags: [Stock]
+      operationId: listMerchantStocks
+      summary: 当前商家库存列表
+      parameters:
+        - name: lowStock
+          in: query
+          schema: { type: boolean }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 库存列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockListResponse' }
+  /merchant/stocks/{skuId}:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    patch:
+      tags: [Stock]
+      operationId: adjustMerchantStock
+      summary: 调整当前商家 SKU 可售库存
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [availableDelta, reason, version]
+              properties:
+                availableDelta: { type: integer }
+                reason: { type: string, minLength: 1, maxLength: 200 }
+                version: { type: integer, minimum: 0 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 调整后的库存
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /merchant/shop:
+    get:
+      tags: [User]
+      operationId: getMerchantShop
+      summary: 当前商家店铺
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 店铺资料
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MerchantShopResponse' }
+    patch:
+      tags: [User]
+      operationId: updateMerchantShop
+      summary: 更新店铺资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopName: { type: string, minLength: 2, maxLength: 80 }
+                logoUrl: { type: string, format: uri }
+                contactName: { type: string, minLength: 1, maxLength: 60 }
+                contactMobile: { type: string, minLength: 5, maxLength: 20 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 更新后的店铺
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MerchantShopResponse' }
+  /payments:
+    post:
+      tags: [Payment]
+      operationId: createPayment
+      summary: 为本人待支付订单创建支付单
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePaymentInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 支付单及收银台参数
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /payments/{payNo}:
+    parameters:
+      - $ref: '#/components/parameters/PayNo'
+    get:
+      tags: [Payment]
+      operationId: getPayment
+      summary: 查询本人支付单
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 支付单状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /payments/{payNo}/close:
+    parameters:
+      - $ref: '#/components/parameters/PayNo'
+    post:
+      tags: [Payment]
+      operationId: closePayment
+      summary: 关闭待支付支付单
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 已关闭支付单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /payments/{payNo}/mock-complete:
+    parameters:
+      - $ref: '#/components/parameters/PayNo'
+    post:
+      tags: [Payment]
+      operationId: completeMockPayment
+      summary: 非生产环境模拟支付成功
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 模拟支付成功及后续业务状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /internal/stocks/reservations:
+    post:
+      tags: [Internal, Stock]
+      operationId: reserveStock
+      security:
+        - serviceAuth: []
+      summary: 内部整体预扣库存
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockReservationInput' }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 预扣结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockReservationResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /internal/stocks/reservations/{reservationNo}/confirm:
+    parameters:
+      - name: reservationNo
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Internal, Stock]
+      operationId: confirmStockReservation
+      security:
+        - serviceAuth: []
+      summary: 内部确认库存扣减
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 确认后的预扣单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockReservationResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /internal/stocks/reservations/{reservationNo}/release:
+    parameters:
+      - name: reservationNo
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Internal, Stock]
+      operationId: releaseStockReservation
+      security:
+        - serviceAuth: []
+      summary: 内部释放预扣库存
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 释放后的预扣单
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockReservationResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /internal/payment-callbacks/{channel}:
+    parameters:
+      - name: channel
+        in: path
+        required: true
+        schema: { type: string, enum: [ALIPAY, WECHAT] }
+    post:
+      tags: [Internal, Payment]
+      operationId: receivePaymentCallback
+      security: []
+      summary: 支付渠道异步通知，按渠道协议验签和应答
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notifyId, orderNo, amount, status, signature]
+              properties:
+                notifyId: { type: string }
+                orderNo: { type: string }
+                amount: { type: integer, minimum: 0 }
+                status: { type: string }
+                signature: { type: string }
+      responses:
+        '200': { description: 验签和业务接收成功；实际响应体遵循渠道协议 }
+        '400': { description: 验签失败、金额不符或请求无效 }
+  /merchant/reconciliations:
+    get:
+      tags: [Payment]
+      operationId: listMerchantReconciliations
+      summary: 当前商家对账记录
+      parameters:
+        - name: bizDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 对账记录
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReconciliationListResponse' }
+  /internal/payments/reconciliation-jobs:
+    post:
+      tags: [Internal, Payment]
+      operationId: startPaymentReconciliation
+      security:
+        - serviceAuth: []
+      summary: 启动异步支付对账
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, bizDate]
+              properties:
+                channel: { type: string, enum: [ALIPAY, WECHAT] }
+                bizDate: { type: string, format: date }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '202': { description: 对账任务已接受 }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    serviceAuth:
+      type: mutualTLS
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 64 }
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema: { type: string }
+    SpuId:
+      name: spuId
+      in: path
+      required: true
+      schema: { type: string }
+    SkuId:
+      name: skuId
+      in: path
+      required: true
+      schema: { type: string }
+    OrderNo:
+      name: orderNo
+      in: path
+      required: true
+      schema: { type: string }
+    PayNo:
+      name: payNo
+      in: path
+      required: true
+      schema: { type: string }
+    OrderStatus:
+      name: status
+      in: query
+      schema: { $ref: '#/components/schemas/OrderStatus' }
+  responses:
+    DefaultError:
+      description: 业务或系统错误
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    TooManyRequests:
+      description: 触发网关或服务限流，按 Retry-After 等待后重试
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: 参数校验失败
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: 未认证或令牌失效
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: 无权限或商家数据范围不匹配
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: 资源不存在或对当前操作者不可见
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: 幂等、库存、版本或状态冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    SuccessResponse:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string, const: OK }
+        message: { type: string }
+        requestId: { type: string, format: uuid }
+    ErrorResponse:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              reason: { type: string }
+    RegisterInput:
+      type: object
+      required: [mobile, password, nickname]
+      properties:
+        mobile: { type: string, minLength: 5, maxLength: 20 }
+        password: { type: string, minLength: 8, maxLength: 128, format: password }
+        nickname: { type: string, minLength: 1, maxLength: 60 }
+    LoginInput:
+      type: object
+      required: [mobile, password]
+      properties:
+        mobile: { type: string, minLength: 5, maxLength: 20 }
+        password: { type: string, minLength: 1, maxLength: 128, format: password }
+    User:
+      type: object
+      required: [userId, nickname, roles]
+      properties:
+        userId: { type: string }
+        nickname: { type: string }
+        avatarUrl: { type: string }
+        roles:
+          type: array
+          items: { type: string, enum: [BUYER, MERCHANT, ADMIN] }
+        merchantId: { type: string }
+    AuthResult:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, tokenType, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, minimum: 1 }
+        tokenType: { type: string, const: Bearer }
+        user: { $ref: '#/components/schemas/User' }
+    AuthResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/AuthResult' }
+    UserResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/User' }
+    AddressInput:
+      type: object
+      required: [receiverName, receiverMobile, province, city, district, detailAddress]
+      properties:
+        receiverName: { type: string, minLength: 1, maxLength: 60 }
+        receiverMobile: { type: string, minLength: 5, maxLength: 20 }
+        province: { type: string, minLength: 1 }
+        city: { type: string, minLength: 1 }
+        district: { type: string, minLength: 1 }
+        detailAddress: { type: string, minLength: 1, maxLength: 300 }
+        postalCode: { type: string, maxLength: 20 }
+        isDefault: { type: boolean }
+    Address:
+      allOf:
+        - $ref: '#/components/schemas/AddressInput'
+        - type: object
+          required: [addressId, userId]
+          properties:
+            addressId: { type: string }
+            userId: { type: string, readOnly: true }
+    AddressResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Address' }
+    AddressListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Address' }
+    MerchantApplicationInput:
+      type: object
+      required: [shopName, contactName, contactMobile, licenseNo]
+      properties:
+        shopName: { type: string, minLength: 2, maxLength: 80 }
+        contactName: { type: string, minLength: 1, maxLength: 60 }
+        contactMobile: { type: string, minLength: 5, maxLength: 20 }
+        licenseNo: { type: string, minLength: 5, maxLength: 64 }
+    MerchantApplication:
+      allOf:
+        - $ref: '#/components/schemas/MerchantApplicationInput'
+        - type: object
+          required: [applicationId, userId, status, createdAt]
+          properties:
+            applicationId: { type: string }
+            userId: { type: string, readOnly: true }
+            status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+            rejectReason: { type: string }
+            createdAt: { type: string, format: date-time }
+    MerchantApplicationResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/MerchantApplication' }
+    MerchantShop:
+      type: object
+      required: [merchantId, shopName, contactName, contactMobile, status]
+      properties:
+        merchantId: { type: string }
+        shopName: { type: string }
+        logoUrl: { type: string }
+        contactName: { type: string }
+        contactMobile: { type: string }
+        status: { type: string, enum: [PENDING, ACTIVE, SUSPENDED] }
+    MerchantShopResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/MerchantShop' }
+    Category:
+      type: object
+      required: [categoryId, name, level]
+      properties:
+        categoryId: { type: string }
+        parentId: { type: string }
+        name: { type: string }
+        level: { type: integer, minimum: 1, maximum: 3 }
+    CategoryListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Category' }
+    ProductStatus:
+      type: string
+      enum: [DRAFT, ON_SALE, OFF_SALE]
+    ProductSort:
+      type: string
+      enum: [RECOMMENDED, NEWEST, PRICE_ASC, PRICE_DESC, SALES_DESC]
+    ProductSummary:
+      type: object
+      required: [spuId, merchantId, title, brand, categoryId, coverImage, minPrice, maxPrice, salesCount, status]
+      properties:
+        spuId: { type: string }
+        merchantId: { type: string }
+        title: { type: string }
+        subtitle: { type: string }
+        brand: { type: string }
+        categoryId: { type: string }
+        coverImage: { type: string }
+        minPrice: { type: integer, minimum: 0 }
+        maxPrice: { type: integer, minimum: 0 }
+        salesCount: { type: integer, minimum: 0 }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        publishedAt: { type: string, format: date-time }
+    ProductImage:
+      type: object
+      required: [url, altText, sortOrder]
+      properties:
+        url: { type: string }
+        altText: { type: string }
+        sortOrder: { type: integer, minimum: 0 }
+        isPrimary: { type: boolean }
+    ProductSku:
+      type: object
+      required: [skuId, skuCode, specs, price, availableStock, enabled]
+      properties:
+        skuId: { type: string }
+        skuCode: { type: string }
+        specs:
+          type: object
+          additionalProperties: { type: string }
+        price: { type: integer, minimum: 0 }
+        originalPrice: { type: integer, minimum: 0 }
+        availableStock: { type: integer, minimum: 0 }
+        enabled: { type: boolean }
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProductSummary'
+        - type: object
+          required: [descriptionHtml, images, skus, version]
+          properties:
+            merchantId: { type: string }
+            descriptionHtml: { type: string }
+            images:
+              type: array
+              items: { $ref: '#/components/schemas/ProductImage' }
+            skus:
+              type: array
+              minItems: 1
+              items: { $ref: '#/components/schemas/ProductSku' }
+            version: { type: integer, minimum: 0 }
+    ProductInput:
+      type: object
+      required: [title, categoryId, brand, descriptionHtml, images, skus]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 120 }
+        subtitle: { type: string, maxLength: 200 }
+        categoryId: { type: string }
+        brand: { type: string, minLength: 1, maxLength: 60 }
+        descriptionHtml: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ProductImage' }
+        skus:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [skuCode, specs, price, enabled]
+            properties:
+              skuId: { type: string, description: 仅更新时携带，且必须属于当前 SPU；新建由服务端分配。 }
+              skuCode: { type: string, minLength: 2, maxLength: 64 }
+              specs:
+                type: object
+                additionalProperties: { type: string }
+              price: { type: integer, minimum: 0 }
+              originalPrice: { type: integer, minimum: 0 }
+              enabled: { type: boolean }
+        version: { type: integer, minimum: 0 }
+    ProductPage:
+      type: object
+      required: [page, size, total, items]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSummary' }
+    ProductPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ProductPage' }
+    ProductResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ProductDetail' }
+    Aggregation:
+      type: object
+      required: [value, label, count]
+      properties:
+        value: { type: string }
+        label: { type: string }
+        count: { type: integer, minimum: 0 }
+    SearchResult:
+      allOf:
+        - $ref: '#/components/schemas/ProductPage'
+        - type: object
+          properties:
+            aggregations:
+              type: object
+              properties:
+                categories:
+                  type: array
+                  items: { $ref: '#/components/schemas/Aggregation' }
+                brands:
+                  type: array
+                  items: { $ref: '#/components/schemas/Aggregation' }
+    SearchResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/SearchResult' }
+    CartItemInput:
+      type: object
+      required: [skuId, quantity]
+      properties:
+        skuId: { type: string }
+        quantity: { type: integer, minimum: 1, maximum: 999 }
+    CartItem:
+      allOf:
+        - $ref: '#/components/schemas/CartItemInput'
+        - type: object
+          required: [userId, spuId, merchantId, selected, addedAt, productTitle, productStatus, unitPrice, availableStock, enabled]
+          properties:
+            userId: { type: string, readOnly: true }
+            spuId: { type: string, description: 失效历史项允许为空字符串。 }
+            merchantId: { type: string }
+            selected: { type: boolean }
+            addedAt: { type: string, format: date-time }
+            productTitle: { type: string }
+            productImage: { type: string }
+            productStatus: { $ref: '#/components/schemas/ProductStatus' }
+            specs:
+              type: object
+              additionalProperties: { type: string }
+            unitPrice: { type: integer, minimum: 0 }
+            availableStock: { type: integer, minimum: 0 }
+            enabled: { type: boolean }
+    Cart:
+      type: object
+      required: [items, selectedAmount, selectedQuantity]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        selectedAmount: { type: integer, minimum: 0 }
+        selectedQuantity: { type: integer, minimum: 0 }
+    CartResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Cart' }
+    CreateOrderInput:
+      type: object
+      required: [addressId, items]
+      properties:
+        addressId: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [skuId, quantity]
+            properties:
+              skuId: { type: string }
+              quantity: { type: integer, minimum: 1, maximum: 999 }
+        remark: { type: string, maxLength: 200 }
+    OrderStatus:
+      type: string
+      enum: [PENDING_PAYMENT, PENDING_SHIPMENT, SHIPPED, COMPLETED, CANCELLED, REFUNDING, REFUNDED]
+    OrderItem:
+      type: object
+      required: [spuId, skuId, productTitle, specs, unitPrice, quantity, totalPrice]
+      properties:
+        spuId: { type: string }
+        skuId: { type: string }
+        productTitle: { type: string }
+        productImage: { type: string }
+        specs:
+          type: object
+          additionalProperties: { type: string }
+        unitPrice: { type: integer, minimum: 0 }
+        quantity: { type: integer, minimum: 1 }
+        totalPrice: { type: integer, minimum: 0 }
+    OrderEvent:
+      type: object
+      required: [fromStatus, toStatus, operatorType, reason, createdAt]
+      properties:
+        fromStatus:
+          anyOf:
+            - $ref: '#/components/schemas/OrderStatus'
+            - type: 'null'
+        toStatus: { $ref: '#/components/schemas/OrderStatus' }
+        operatorType: { type: string, enum: [BUYER, MERCHANT, SYSTEM, EVENT] }
+        reason: { type: string }
+        createdAt: { type: string, format: date-time }
+    Order:
+      type: object
+      required: [orderNo, userId, merchantId, status, itemAmount, freightAmount, discountAmount, payableAmount, items, history, version, createdAt]
+      properties:
+        orderNo: { type: string }
+        userId: { type: string }
+        merchantId: { type: string }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        itemAmount: { type: integer, minimum: 0 }
+        freightAmount: { type: integer, minimum: 0 }
+        discountAmount: { type: integer, minimum: 0 }
+        payableAmount: { type: integer, minimum: 0 }
+        address: { $ref: '#/components/schemas/AddressInput' }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/OrderItem' }
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/OrderEvent' }
+        version: { type: integer, minimum: 0 }
+        remark: { type: string }
+        carrier: { type: string }
+        trackingNo: { type: string }
+        cancelReason: { type: string }
+        expireAt: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time }
+        shippedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+        cancelledAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    OrderPage:
+      type: object
+      required: [page, size, total, items]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+    OrderResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Order' }
+    OrderPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/OrderPage' }
+    StockItem:
+      type: object
+      required: [skuId, total, availableStock, reservedStock, version]
+      properties:
+        skuId: { type: string }
+        total: { type: integer, minimum: 0 }
+        availableStock: { type: integer, minimum: 0 }
+        reservedStock: { type: integer, minimum: 0 }
+        version: { type: integer, minimum: 0 }
+    StockResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/StockItem' }
+    MerchantStockItem:
+      allOf:
+        - $ref: '#/components/schemas/StockItem'
+        - type: object
+          required: [spuId, productTitle, productImage, skuCode, specs]
+          properties:
+            spuId: { type: string }
+            productTitle: { type: string }
+            productImage: { type: string }
+            skuCode: { type: string }
+            specs:
+              type: object
+              additionalProperties: { type: string }
+    StockListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/MerchantStockItem' }
+    StockReservationInput:
+      type: object
+      required: [reservationNo, orderNo, expireAt, items]
+      properties:
+        reservationNo: { type: string }
+        orderNo: { type: string }
+        expireAt: { type: string, format: date-time }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [skuId, quantity]
+            properties:
+              skuId: { type: string }
+              quantity: { type: integer, minimum: 1 }
+    StockReservation:
+      allOf:
+        - $ref: '#/components/schemas/StockReservationInput'
+        - type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [RESERVED, CONFIRMED, RELEASED] }
+            reason: { type: string }
+    StockReservationResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/StockReservation' }
+    PaymentChannel:
+      type: string
+      enum: [MOCK, ALIPAY, WECHAT]
+    CreatePaymentInput:
+      type: object
+      required: [orderNo, channel]
+      properties:
+        orderNo: { type: string }
+        channel: { $ref: '#/components/schemas/PaymentChannel' }
+    Payment:
+      type: object
+      required: [payNo, orderNo, userId, channel, amount, status, createdAt]
+      properties:
+        payNo: { type: string }
+        orderNo: { type: string }
+        userId: { type: string }
+        channel: { $ref: '#/components/schemas/PaymentChannel' }
+        amount: { type: integer, minimum: 0 }
+        status: { type: string, enum: [PENDING, SUCCESS, FAILED, CLOSED] }
+        cashierToken: { type: string }
+        expireAt: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    PaymentResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Payment' }
+    ReconciliationRecord:
+      type: object
+      required: [channel, channelTradeNo, bizDate, channelAmount, localAmount, status]
+      properties:
+        channel: { type: string, enum: [ALIPAY, WECHAT] }
+        channelTradeNo: { type: string }
+        payNo: { type: string }
+        bizDate: { type: string, format: date }
+        channelAmount: { type: integer }
+        localAmount: { type: integer }
+        status: { type: string, enum: [MATCHED, DIFFERENT, MISSING_LOCAL, MISSING_CHANNEL] }
+    ReconciliationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ReconciliationRecord' }
