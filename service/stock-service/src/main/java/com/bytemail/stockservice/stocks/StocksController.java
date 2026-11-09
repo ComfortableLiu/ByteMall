@@ -14,7 +14,7 @@ public class StocksController {
     private final StocksService stocksService;
 
     @GetMapping("/sku/{skuId}")
-    public ApiResponse<StocksResponses.Sku> getStockBySkuId(@PathVariable String skuId) {
+    public ApiResponse<StocksResponses.Sku> getStockBySkuId(@PathVariable Long skuId) {
         return ApiResponse.ok(stocksService.getStockBySkuId(skuId));
     }
 }

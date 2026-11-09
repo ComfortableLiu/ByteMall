@@ -1,5 +1,7 @@
 package com.bytemail.stockservice.stocks;
 
+import com.bytemail.stockservice.entity.StockMain;
+import com.bytemail.stockservice.mapper.StockMainMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -9,8 +11,11 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class StocksService {
 
-    public StocksResponses.Sku getStockBySkuId(String skuId) {
-        // TODO 查库存
-        return new StocksResponses.Sku(skuId, 100, 100, 0);
+    private final StockMainMapper stockMainMapper;
+
+    public StocksResponses.Sku getStockBySkuId(Long skuId) {
+        log.info("Getting stock by sku id {}", skuId);
+        StockMain stockMain = stockMainMapper.selectBySkuId(skuId);
+        return StocksResponses.Sku.of(stockMain);
     }
 }
