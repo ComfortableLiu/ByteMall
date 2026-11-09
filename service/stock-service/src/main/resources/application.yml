@@ -6,6 +6,15 @@ spring:
     name: stock-service
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_DATABASE:byte-mail}
+    url: jdbc:mysql://${DB_HOST:123.56.201.124}:${DB_PORT:6100}/${DB_DATABASE:byte_mail}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:12341234}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:123.56.201.124}
+      port: ${REDIS_PORT:9400}
+      password: ${REDIS_PASSWORD:gyri4wDyHlRY0aJK}
+      database: ${REDIS_DB:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:10000}
+      timeout: ${REDIS_COMMAND_TIMEOUT:5000}
