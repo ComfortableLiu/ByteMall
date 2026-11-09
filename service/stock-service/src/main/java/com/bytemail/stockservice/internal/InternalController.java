@@ -2,6 +2,7 @@ package com.bytemail.stockservice.internal;
 
 import com.bytemail.common.model.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,6 +18,7 @@ public class InternalController {
      * @return 库存现状
      */
     @PostMapping("/stocks/reservations")
+    @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<InternalResponses.StockResponse> reservations(@RequestBody CreateStocksReservationDto createStocksDto) {
         return ApiResponse.ok(internalService.createStockReservation(createStocksDto));
     }
