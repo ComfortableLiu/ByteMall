@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -37,13 +37,33 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <mybatis-plus.version>3.5.7</mybatis-plus.version>
-        <jjwt.version>0.12.6</jjwt.version>
-        <grpc.version>1.66.0</grpc.version>
-        <protobuf.version>3.25.5</protobuf.version>
+        <mysql.version>26.7.0</mysql.version>
+        <mybatis-plus.version>3.5.18.1</mybatis-plus.version>
+        <jjwt.version>0.12.7</jjwt.version>
+        <grpc.version>1.85.1</grpc.version>
+        <protobuf.version>3.25.9</protobuf.version>
         <javax.annotation.version>1.3.2</javax.annotation.version>
         <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
+
+        <!-- 修复版本覆盖：OpenTelemetry、Guava、LZ4、Snappy、Jackson -->
+        <opentelemetry.version>1.68.0</opentelemetry.version>
+        <guava.version>33.7.2-android</guava.version>
+        <lz4-java.version>1.11.4</lz4-java.version>
+        <snappy-java.version>1.1.10.9</snappy-java.version>
+        <!-- CVE-2026-110879（jackson-databind 多态反序列化 RCE）：3.1.7/2.21.7 及以下受影响 -->
+        <jackson-bom.version>3.1.8</jackson-bom.version>
+        <jackson-2-bom.version>2.21.8</jackson-2-bom.version>
+        <!-- CVE-2026-19880（logback MDC 路径穿越）：1.5.x 无回溯修复版，升至 1.6.3+ -->
+        <logback.version>1.6.3</logback.version>
+        <!-- CVE-2026-110952（Kafka SASL/OAUTHBEARER JWT iss/aud 默认不校验）：4.3.2 及以下受影响，修复版仅 4.4.0；
+             同时将 zstd-jni 提升至 1.5.7-17，覆盖 CVE-2026-87795/87823/87824/87825/87877/89045/89046/90560/90852 -->
+        <kafka.version>4.4.0</kafka.version>
+        <!-- CVE-2026-113602（json-smart 严格模式绕过）：2.6.1 修复；accessors-smart 2.6.1 随之将 asm 提升至 9.11.1
+             （CVE-2026-110257/110258/110260/110261/110263/110591 于 9.11 修复，CVE-2026-112046 于 9.11.1 修复） -->
+        <json-smart.version>2.6.1</json-smart.version>
+        <!-- CVE-2026-110974（android-json 嵌套 JSON 递归 DoS）：永无修复版，按官方缓解方案替换为 org.json -->
+        <org-json.version>20260814</org-json.version>
     </properties>
 
     <dependencyManagement>
@@ -60,8 +80,40 @@
             </dependency>
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
                 <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>at.yawk.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>${lz4-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>${snappy-java.version}</version>
+            </dependency>
+            <!-- CVE-2026-110974：排除永不修复的 android-json（jsonassert 传递引入） -->
+            <dependency>
+                <groupId>org.skyscreamer</groupId>
+                <artifactId>jsonassert</artifactId>
+                <version>${jsonassert.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.vaadin.external.google</groupId>
+                        <artifactId>android-json</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>${org-json.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.jsonwebtoken</groupId>
@@ -105,8 +157,24 @@
                 <artifactId>javax.annotation-api</artifactId>
                 <version>${javax.annotation.version}</version>
             </dependency>
+
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql.version}</version>
+                <scope>runtime</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <!-- 全模块继承：测试作用域提供 org.json:json，替代被排除的 android-json（jsonassert 需要 org.json API） -->
+    <dependencies>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <pluginManagement>
