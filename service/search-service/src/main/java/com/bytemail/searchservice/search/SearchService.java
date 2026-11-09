@@ -7,8 +7,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 
+// 标记这是一个Service
 @Service
+// 自动注入用来打日志的log变量
 @Slf4j
+// 自动注入依赖
 @RequiredArgsConstructor
 public class SearchService {
     public PageResult<String> products(String query, Integer page, Integer pageSize, String category, String brand, String minPrice, String maxPrice, String sort) {

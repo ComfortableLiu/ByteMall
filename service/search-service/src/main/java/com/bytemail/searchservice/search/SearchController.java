@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 // 自动注入依赖
 @RequiredArgsConstructor
 // 标记这里面的所有接口都是/search开头的
-@RequestMapping("/search")
+@RequestMapping("/v1/search")
 public class SearchController {
     // 自动注入SearchService
     // 因为有了@RequiredArgsConstructor，所以这里不需要new或者其他操作了，编译器自动就会new一个新对象
