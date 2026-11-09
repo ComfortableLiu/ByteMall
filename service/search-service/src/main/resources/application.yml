@@ -6,6 +6,6 @@ spring:
     name: search-service
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:123.56.201.124}:${DB_PORT:6100}/${DB_DATABASE:byte_mail}
+    url: jdbc:mysql://${DB_HOST:123.56.201.124}:${DB_PORT:6100}/${DB_DATABASE:byte_mall}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:12341234}

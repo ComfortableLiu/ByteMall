@@ -11,16 +11,16 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.bytemail</groupId>
-    <artifactId>ByteMail</artifactId>
+    <groupId>com.bytemall</groupId>
+    <artifactId>ByteMall</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>ByteMail</name>
-    <description>ByteMail 商城微服务父工程</description>
+    <name>ByteMall</name>
+    <description>ByteMall 商城微服务父工程</description>
 
     <modules>
-        <module>byte-mail-common</module>
-        <module>byte-mail-proto</module>
+        <module>byte-mall-common</module>
+        <module>byte-mall-proto</module>
         <module>user-service</module>
         <module>product-service</module>
         <module>search-service</module>
@@ -69,13 +69,13 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>com.bytemail</groupId>
-                <artifactId>byte-mail-common</artifactId>
+                <groupId>com.bytemall</groupId>
+                <artifactId>byte-mall-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.bytemail</groupId>
-                <artifactId>byte-mail-proto</artifactId>
+                <groupId>com.bytemall</groupId>
+                <artifactId>byte-mall-proto</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
