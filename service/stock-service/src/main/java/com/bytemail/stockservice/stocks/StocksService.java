@@ -1,5 +1,6 @@
 package com.bytemail.stockservice.stocks;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.bytemail.stockservice.entity.StockMain;
 import com.bytemail.stockservice.mapper.StockMainMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ public class StocksService {
 
     public StocksResponses.Sku getStockBySkuId(Long skuId) {
         log.info("Getting stock by sku id {}", skuId);
-        StockMain stockMain = stockMainMapper.selectBySkuId(skuId);
+        StockMain stockMain = stockMainMapper.selectBySkuIdForUpdate(skuId);
         return StocksResponses.Sku.of(stockMain);
     }
 }

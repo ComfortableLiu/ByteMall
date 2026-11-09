@@ -14,13 +14,6 @@ public interface StockMainMapper extends BaseMapper<StockMain> {
             SELECT sku_id, merchant_id, total, available, reserved, version, created_at, updated_at
             FROM stock_main
             WHERE sku_id = #{skuId}
-            """)
-    StockMain selectBySkuId(@Param("skuId") Long skuId);
-
-    @Select("""
-            SELECT sku_id, merchant_id, total, available, reserved, version, created_at, updated_at
-            FROM stock_main
-            WHERE sku_id = #{skuId}
             FOR UPDATE
             """)
     StockMain selectBySkuIdForUpdate(@Param("skuId") Long skuId);
