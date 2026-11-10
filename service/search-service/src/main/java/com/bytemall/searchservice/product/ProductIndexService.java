@@ -39,7 +39,8 @@ public class ProductIndexService {
                         .properties("spuId", property -> property.keyword(value -> value))
                         .properties("merchantId", property -> property.keyword(value -> value))
                         .properties("categoryId", property -> property.keyword(value -> value))
-                        .properties("brandName", property -> property.keyword(value -> value))
+                        .properties("brand", property -> property.keyword(value -> value))
+                        .properties("coverImage", property -> property.keyword(value -> value))
                         .properties("title", property -> property.text(value -> value
                                 .analyzer("ik_max_word")
                                 .searchAnalyzer("ik_smart")

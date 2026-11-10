@@ -9,3 +9,8 @@ spring:
     url: jdbc:mysql://${DB_HOST:123.56.201.124}:${DB_PORT:6100}/${DB_DATABASE:byte_mall}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:12341234}
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://123.56.201.124:9500}
+    connection-timeout: 5s
+    read-timeout: 30s
