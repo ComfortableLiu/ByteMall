@@ -51,10 +51,10 @@ public class SearchService {
         }
         // 价格区间筛选：商品的 [minPrice, maxPrice] 和用户给的区间有交集就命中
         if (minPrice != null) {
-            filters.add(Query.of(q -> q.range(r -> r.longNumber(n -> n.field("maxPrice").gte(minPrice.longValue())))));
+            filters.add(Query.of(q -> q.range(r -> r.number(n -> n.field("maxPrice").gte(minPrice.doubleValue())))));
         }
         if (maxPrice != null) {
-            filters.add(Query.of(q -> q.range(r -> r.longNumber(n -> n.field("minPrice").lte(maxPrice.longValue())))));
+            filters.add(Query.of(q -> q.range(r -> r.number(n -> n.field("minPrice").lte(maxPrice.doubleValue())))));
         }
 
         // 关键词用分词后的多字段匹配；没给关键词就是纯筛选浏览，不需要 must
