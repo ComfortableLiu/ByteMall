@@ -6,7 +6,6 @@ import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
@@ -21,14 +20,13 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Service
-@Profile("!prod")
 @RequiredArgsConstructor
 public class ProductIndexSyncService {
 
     private static final int BATCH_SIZE = 500;
     private static final Pattern HTML_TAG = Pattern.compile("<[^>]+>");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
-    private static final String PRODUCT_QUERY = """
+    private static final String PRODUCT_SELECT = """
             SELECT spu.id, spu.merchant_id, spu.category_id, spu.title, spu.subtitle,
                    spu.brand, spu.description_html, spu.status, spu.sales_count,
                    spu.version, spu.published_at, spu.updated_at,
@@ -41,8 +39,9 @@ public class ProductIndexSyncService {
                     ORDER BY image.is_primary DESC, image.sort_order ASC, image.id ASC
                     LIMIT 1) AS cover_image
             FROM product_spu spu
-            ORDER BY spu.id
             """;
+    private static final String PRODUCT_QUERY = PRODUCT_SELECT + " ORDER BY spu.id";
+    private static final String PRODUCT_BY_ID_QUERY = PRODUCT_SELECT + " WHERE spu.id = ?";
 
     private final JdbcTemplate jdbcTemplate;
     private final ElasticsearchClient elasticsearchClient;
@@ -72,6 +71,26 @@ public class ProductIndexSyncService {
 
         log.info("商品索引同步完成，total={}，succeeded={}，failed={}", documents.size(), succeeded, failed);
         return new SyncResult(ProductIndexService.INDEX, documents.size(), succeeded, failed);
+    }
+
+    public void synchronizeBySpuId(String spuId) throws IOException {
+        List<ProductIndexDocument> documents = jdbcTemplate.query(
+                PRODUCT_BY_ID_QUERY,
+                (rs, rowNum) -> toDocument(rs),
+                Long.valueOf(spuId)
+        );
+        if (documents.isEmpty()) {
+            throw new IllegalArgumentException("商品不存在，spuId=" + spuId);
+        }
+
+        BulkResponse response = writeBatch(documents);
+        BulkResponseItem item = response.items().get(0);
+        if (item.error() != null) {
+            throw new IOException("商品索引写入失败，spuId=" + spuId + "，原因=" + item.error().reason());
+        }
+
+        elasticsearchClient.indices().refresh(request -> request.index(ProductIndexService.INDEX));
+        log.info("单商品索引同步完成，spuId={}", spuId);
     }
 
     private BulkResponse writeBatch(List<ProductIndexDocument> documents) throws IOException {
