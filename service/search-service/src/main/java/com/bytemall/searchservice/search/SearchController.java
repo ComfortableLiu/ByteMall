@@ -1,12 +1,14 @@
 package com.bytemall.searchservice.search;
 
 import com.bytemall.common.model.dto.ApiResponse;
-import com.bytemall.common.model.dto.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
+import java.util.List;
 
 // 标记这是个Controller
 @RestController
@@ -22,23 +24,23 @@ public class SearchController {
     // GET 接口
     @GetMapping("/products")
     // 搜索主接口
-    public ApiResponse<PageResult<String>> products(
-            @RequestParam String q,
+    public ApiResponse<SearchResponses.SearchResult> products(
+            @RequestParam(value = "q", required = false, defaultValue = "") String q,
             @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", required = false, defaultValue = "20") Integer pageSize,
+            @RequestParam(value = "size", required = false, defaultValue = "20") Integer size,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "brand", required = false) String brand,
-            @RequestParam(value = "minPrice", required = false) String minPrice,
-            @RequestParam(value = "maxPrice", required = false) String maxPrice,
+            @RequestParam(value = "minPrice", required = false) Integer minPrice,
+            @RequestParam(value = "maxPrice", required = false) Integer maxPrice,
             @RequestParam(value = "sort", required = false) String sort
-    ) {
-        return ApiResponse.ok(searchService.products(q, page, pageSize, category, brand, minPrice, maxPrice, sort));
+    ) throws IOException {
+        return ApiResponse.ok(searchService.products(q, page, size, category, brand, minPrice, maxPrice, sort));
     }
 
     // GET 接口
     @GetMapping("/suggestions")
     // 搜索主接口
-    public ApiResponse<PageResult<String>> suggestions(@RequestParam String q) {
+    public ApiResponse<List<String>> suggestions(@RequestParam String q) throws IOException {
         return ApiResponse.ok(searchService.suggestions(q));
     }
 }
