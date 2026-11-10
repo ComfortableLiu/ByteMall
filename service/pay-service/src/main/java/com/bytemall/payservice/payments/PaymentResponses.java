@@ -10,7 +10,7 @@ public final class PaymentResponses {
     public record Payment(
             String payNo,
             String orderNo,
-            String userId,
+            Long userId,
             PaymentChannel channel,
             long amount,
             PaymentStatus status,
