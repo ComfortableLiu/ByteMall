@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -21,7 +21,7 @@ public class InternalService {
         return new InternalResponses.StockResponse(
                 "reservationNo",
                 "orderNo",
-                new Timestamp(System.currentTimeMillis()),
+                LocalDateTime.now(),
                 createStocksReservationDto.items()
         );
     }
@@ -36,7 +36,7 @@ public class InternalService {
         return new InternalResponses.StockResponse(
                 "reservationNo",
                 "orderNo",
-                new Timestamp(System.currentTimeMillis()),
+                LocalDateTime.now(),
                 null
         );
     }
@@ -50,7 +50,7 @@ public class InternalService {
         return new InternalResponses.StockResponse(
                 "reservationNo",
                 "orderNo",
-                new Timestamp(System.currentTimeMillis()),
+                LocalDateTime.now(),
                 null
         );
     }
