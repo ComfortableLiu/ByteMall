@@ -64,6 +64,19 @@
         <json-smart.version>2.6.1</json-smart.version>
         <!-- CVE-2026-110974（android-json 嵌套 JSON 递归 DoS）：永无修复版，按官方缓解方案替换为 org.json -->
         <org-json.version>20260814</org-json.version>
+        <!-- CVE-2026-49844（log4j-api MapMessage.asJson() 对非有限浮点值输出非法 JSON，破坏日志管道）：
+             2.13.1–2.25.4 及 2.26.0 受影响，官方修复版 2.25.5（2.26 线为 2.26.1） -->
+        <log4j2.version>2.25.5</log4j2.version>
+        <!-- Tomcat 10.1.55 命中 2026 年 8–10 月多批 CVE（core：CVE-2026-65637/65905/59083/59084/65182/68525/68569/86350/101356/101296；
+             websocket：CVE-2026-76183/77791/87022/79677/73180）：10.1.60 及以下受影响，10.1.61 全部修复（10.1 线公开仓库最新版） -->
+        <tomcat.version>10.1.61</tomcat.version>
+        <!-- 【待迁移清零】Spring Framework 6.2.19（spring-beans/expression/web/webmvc，CVE-2026-47883/47884/47885/47886/47887/47889/47890/47891/59281/59282/59283/59313/59314）：
+             6.2 线已终止 OSS 维护，受影响区间 6.2.0–6.2.19，修复版 6.2.20 仅商业支持渠道发布、Maven Central 不存在；
+             开源修复仅在 Framework 7.0.9+，需随 Spring Boot 4.x（Servlet 6.1/Tomcat 11）整体迁移，
+             无法在 Boot 3.5.x 上用 spring-framework.version 属性覆盖（运行时不兼容）。迁移前按触发条件评估暴露面 -->
+        <!-- CVE-2026-9563（parsson JSON 解析无上限致 DoS）：1.1.8 引入解析字符上限（默认 1500 万）修复，取 1.1 线最新 1.1.9；
+             1.0.x 线无回溯修复版（1.0.5 为终版）。由 elasticsearch-java 传递引入，Boot BOM 不管理，须在 dependencyManagement 钉版 -->
+        <parsson.version>1.1.9</parsson.version>
     </properties>
 
     <dependencyManagement>
@@ -97,6 +110,12 @@
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
                 <version>${snappy-java.version}</version>
+            </dependency>
+            <!-- CVE-2026-9563：钉住 elasticsearch-java 传递引入的 parsson（Boot BOM 不管理该构件，1.0.x 无修复版） -->
+            <dependency>
+                <groupId>org.eclipse.parsson</groupId>
+                <artifactId>parsson</artifactId>
+                <version>${parsson.version}</version>
             </dependency>
             <!-- CVE-2026-110974：排除永不修复的 android-json（jsonassert 传递引入） -->
             <dependency>
