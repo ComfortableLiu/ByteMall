@@ -136,9 +136,22 @@
 | --- | --- | --- | --- | --- |
 | GET | `/merchant/products` | MERCHANT | 200 `Page<ProductSummary>` | 只查当前商家，可按状态/关键词筛选 |
 | POST | `/merchant/products` | MERCHANT | 201 `ProductDetail` | 创建 SPU 和至少一个 SKU，默认 `DRAFT` |
+| POST | `/merchant/products/images` | MERCHANT | 201 `ImageUploadResult` | `multipart/form-data` 上传单张商品图片到阿里云 OSS |
 | GET | `/merchant/products/{spuId}` | MERCHANT | 200 `ProductDetail` | 可读取草稿/下架商品，但限本商家 |
 | PATCH | `/merchant/products/{spuId}` | MERCHANT | 200 `ProductDetail` | 携带 `version` 乐观锁；修改不影响订单快照 |
 | POST | `/merchant/products/{spuId}/status` | MERCHANT | 200 `ProductDetail` | `{status: ON_SALE|OFF_SALE, version}` |
+
+图片上传接口使用 `multipart/form-data`，文件字段名为 `file`。单文件最大 5 MiB，支持 JPG、PNG、WebP；服务端必须校验商家权限、实际文件类型和文件内容，不能只信任扩展名或浏览器声明的 MIME。文件由服务端写入阿里云 OSS，AccessKey 不得下发到浏览器。
+
+上传成功响应的 `data` 为：
+
+```json
+{
+  "url": "https://byte-mall.oss-cn-beijing.aliyuncs.com/products/550e8400-e29b-41d4-a716-446655440000.webp"
+}
+```
+
+前端将返回的 `url` 放入商品保存请求的 `images` 字段。图片上传和商品保存是两个独立请求，上传图片不会自动创建商品。
 
 `ProductInput`：`title`、`subtitle`、`categoryId`、`brand`、`descriptionHtml`、`images`、`skus`、`version`（更新时必填）。每个 SKU 包含 `skuCode`、`specs`、`price`、`originalPrice`、`enabled`；同 SPU 规格组合和 SKU 编码不能重复。
 

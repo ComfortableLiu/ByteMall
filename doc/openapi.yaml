@@ -595,6 +595,34 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProductResponse' }
         '400': { $ref: '#/components/responses/ValidationError' }
+  /merchant/products/images:
+    post:
+      tags: [Product]
+      operationId: uploadMerchantProductImage
+      summary: 上传一张商品图片到阿里云 OSS
+      description: 商家以 multipart/form-data 上传图片，服务端校验文件后写入 OSS；返回的 URL 用于商品保存请求中的 images 字段。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPG、PNG 或 WebP 图片，单文件最大 5 MiB
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '201':
+          description: 图片已上传，返回 OSS 图片地址
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImageUploadResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /merchant/products/{spuId}:
     parameters:
       - $ref: '#/components/parameters/SpuId'
@@ -1379,6 +1407,20 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/ProductDetail' }
+    ImageUploadResult:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: 上传成功后返回的 OSS 图片地址，用于商品 images 字段
+    ImageUploadResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ImageUploadResult' }
     Aggregation:
       type: object
       required: [value, label, count]

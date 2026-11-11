@@ -721,6 +721,12 @@ export class MockAdapter {
     return this.toDetail(product)
   }
 
+  async uploadProductImage(file: File): Promise<{ url: string }> {
+    void file
+    await this.wait()
+    throw new DomainError('UPLOAD_UNSUPPORTED', 'Mock 模式请使用本地商品插画；OSS 上传仅在线上模式可用')
+  }
+
   async saveProduct(input: ProductInput, spuId?: string): Promise<ProductDetail> {
     await this.wait()
     const merchant = this.merchant()

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package com.bytemall.stock;
+
+option java_multiple_files = true;
+option java_package = "com.bytemall.stock.proto";
+
+// 库存服务：为购物车等其他服务提供实时库存查询能力。
+service StockService {
+  // 批量查询可售库存、库存版本和不存在的 SKU。
+  rpc GetAvailableStocks (GetAvailableStocksRequest) returns (GetAvailableStocksResponse);
+}
+
+message GetAvailableStocksRequest {
+  // 单次支持1到100个SKU ID，服务端会自动去重。
+  repeated string sku_ids = 1;
+}
+
+message AvailableStock {
+  string sku_id = 1;
+  // 可用于新订单预扣的数量，不包含已预扣库存。
+  int32 available_stock = 2;
+  // 用于识别库存变更和防止旧数据覆盖新数据。
+  int64 version = 3;
+}
+
+message GetAvailableStocksResponse {
+  // 存在库存记录的SKU。
+  repeated AvailableStock items = 1;
+  // 没有库存记录的SKU，不能与可售库存为0混淆。
+  repeated string missing_sku_ids = 2;
+}

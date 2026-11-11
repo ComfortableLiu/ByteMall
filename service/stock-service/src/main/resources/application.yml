@@ -1,6 +1,10 @@
 server:
   port: 3001
 
+grpc:
+  server:
+    port: ${STOCK_GRPC_PORT:9091}
+
 spring:
   application:
     name: stock-service

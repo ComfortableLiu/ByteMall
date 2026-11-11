@@ -1,5 +1,6 @@
 package com.bytemall.searchservice.product;
 
+import com.bytemall.common.model.constants.KafkaTopics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +20,8 @@ public class ProductChangedListener {
 
     @KafkaListener(
             id = "productIndexListener",
-            groupId = "${spring.kafka.consumer.group-id:search-service-consumer-group-v1}",
-            topics = "${bytemall.kafka.topics.product-changed:product-changed}"
+            groupId = KafkaTopics.SEARCH_SERVICE_CONSUMER_GROUP_V1,
+            topics = KafkaTopics.PRODUCT_CHANGED
     )
     public void onProductChanged(String message, Acknowledgment acknowledgment) throws IOException {
         ProductChangedEvent event = objectMapper.readValue(message, ProductChangedEvent.class);
