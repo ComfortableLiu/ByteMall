@@ -1,6 +1,5 @@
 package com.bytemall.payservice.payments;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.bytemall.payservice.entity.PaymentOrder;
 import com.bytemall.payservice.mapper.PaymentOrderMapper;

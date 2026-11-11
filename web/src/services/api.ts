@@ -18,6 +18,7 @@ export interface CommerceApi {
   getCart(): Promise<Cart>
   createOrder(input: CreateOrderInput, idempotencyKey: string): Promise<Order>
   createPayment(orderNo: string, channel: PaymentChannel, idempotencyKey: string): Promise<Payment>
+  uploadProductImage(file: File): Promise<{ url: string }>
 }
 
 export interface LoginOptions {
