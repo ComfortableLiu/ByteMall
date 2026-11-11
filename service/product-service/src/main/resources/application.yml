@@ -1,5 +1,13 @@
 server:
   port: 3001
+aliyun:
+  oss:
+    endpoint: ${ALIYUN_OSS_ENDPOINT:https://oss-cn-beijing.aliyuncs.com}
+    bucket: ${ALIYUN_OSS_BUCKET:byte-mall}
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}
+    public-base-url: ${ALIYUN_OSS_PUBLIC_BASE_URL:https://byte-mall.oss-cn-beijing.aliyuncs.com}
+    key-prefix: ${ALIYUN_OSS_KEY_PREFIX:products/}
 
 spring:
   application:

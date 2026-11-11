@@ -29,6 +29,7 @@ import { DomainError } from './mock-adapter.ts'
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
+  formData?: FormData
   query?: Record<string, string | number | boolean | undefined>
   idempotencyKey?: string
 }
@@ -90,14 +91,14 @@ export class RemoteAdapter {
       accept: 'application/json',
       'x-request-id': globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}`,
     })
-    if (options.body !== undefined) headers.set('content-type', 'application/json')
+    if (options.body !== undefined && options.formData === undefined) headers.set('content-type', 'application/json')
     if (this.accessToken) headers.set('authorization', `Bearer ${this.accessToken}`)
     if (options.idempotencyKey) headers.set('idempotency-key', options.idempotencyKey)
     try {
       const response = await fetch(url, {
         method: options.method ?? 'GET',
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body: options.formData ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
         credentials: 'include',
       })
       const text = await response.text()
@@ -376,6 +377,12 @@ export class RemoteAdapter {
     })
     this.syncProducts([product])
     return product
+  }
+
+  async uploadProductImage(file: File): Promise<{ url: string }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return this.request<{ url: string }>('/merchant/products/images', { method: 'POST', formData })
   }
 
   async setProductStatus(spuId: string, status: ProductStatus, version?: number): Promise<ProductDetail> {

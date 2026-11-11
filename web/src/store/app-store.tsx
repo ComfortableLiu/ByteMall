@@ -30,6 +30,7 @@ function buildActions(api: AppAdapter, invoke: Invoke) {
     getPayment: (payNo: string) => invoke(() => api.getPayment(payNo)),
     completeMockPayment: (payNo: string) => invoke(() => api.completeMockPayment(payNo)),
     closePayment: (payNo: string) => invoke(() => api.closePayment(payNo)),
+    uploadProductImage: (file: File) => invoke(() => api.uploadProductImage(file)),
     saveAddress: (...args: Parameters<MockAdapter['saveAddress']>) => invoke(() => api.saveAddress(...args)),
     deleteAddress: (addressId: string) => invoke(() => api.deleteAddress(addressId)),
     setDefaultAddress: (addressId: string) => invoke(() => api.setDefaultAddress(addressId)),
