@@ -3,8 +3,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.bytemail</groupId>
-        <artifactId>ByteMail</artifactId>
+        <groupId>com.bytemall</groupId>
+        <artifactId>ByteMall</artifactId>
         <version>0.1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
@@ -14,12 +14,12 @@
     <description>库存预扣服务</description>
     <dependencies>
         <dependency>
-            <groupId>com.bytemail</groupId>
-            <artifactId>byte-mail-common</artifactId>
+            <groupId>com.bytemall</groupId>
+            <artifactId>byte-mall-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.bytemail</groupId>
-            <artifactId>byte-mail-proto</artifactId>
+            <groupId>com.bytemall</groupId>
+            <artifactId>byte-mall-proto</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -35,7 +35,7 @@
         </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>

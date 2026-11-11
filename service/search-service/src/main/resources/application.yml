@@ -6,6 +6,30 @@ spring:
     name: search-service
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:123.56.201.124}:${DB_PORT:6100}/${DB_DATABASE:byte_mail}
+    url: jdbc:mysql://${DB_HOST:123.56.201.124}:${DB_PORT:6100}/${DB_DATABASE:byte_mall}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:12341234}
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://123.56.201.124:9500}
+    connection-timeout: 5s
+    read-timeout: 30s
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:123.56.201.124:9900}
+    client-id: ${KAFKA_CLIENT_ID:search-service}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:search-service-consumer-group-v1}
+      auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
+      enable-auto-commit: ${KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:false}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      client-id: ${KAFKA_PRODUCER_CLIENT_ID:search-service-producer}
+      retries: ${KAFKA_RETRY_COUNT:3}
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        max.block.ms: ${KAFKA_REQUEST_TIMEOUT:30000}
+        request.timeout.ms: ${KAFKA_REQUEST_TIMEOUT:30000}
+    listener:
+      ack-mode: manual_immediate

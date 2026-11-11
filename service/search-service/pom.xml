@@ -3,8 +3,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.bytemail</groupId>
-        <artifactId>ByteMail</artifactId>
+        <groupId>com.bytemall</groupId>
+        <artifactId>ByteMall</artifactId>
         <version>0.1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
@@ -14,12 +14,12 @@
     <description>Elasticsearch 搜索、筛选与聚合服务</description>
     <dependencies>
         <dependency>
-            <groupId>com.bytemail</groupId>
-            <artifactId>byte-mail-common</artifactId>
+            <groupId>com.bytemall</groupId>
+            <artifactId>byte-mall-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.bytemail</groupId>
-            <artifactId>byte-mail-proto</artifactId>
+            <groupId>com.bytemall</groupId>
+            <artifactId>byte-mall-proto</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -36,6 +36,15 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <!-- ES 官方 Java API Client：直接操作索引（建索引、mapping、bulk、查询聚合） -->
         <dependency>
