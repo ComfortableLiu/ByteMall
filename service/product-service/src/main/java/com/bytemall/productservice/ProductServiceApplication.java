@@ -1,4 +1,4 @@
-package com.bytemail.productservice;
+package com.bytemall.productservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
