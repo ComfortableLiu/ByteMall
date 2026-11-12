@@ -1,8 +1,7 @@
 package com.bytemall.productservice.products;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-
 import java.util.List;
+import java.util.Map;
 
 public class ProductResponses {
     private ProductResponses() {
@@ -20,7 +19,7 @@ public class ProductResponses {
             long maxPrice,
             long salesCount,
             String status,
-            @JsonInclude(JsonInclude.Include.NON_NULL) String publishedAt
+            String publishedAt
     ) {
     }
 
@@ -31,4 +30,37 @@ public class ProductResponses {
             List<ProductSummary> items
     ) {
     }
+
+
+    public record Image(String url, String altText, int sortOrder, boolean isPrimary) {}
+
+    public record Sku(
+            String skuId,
+            String skuCode,
+            Map<String, String> specs,
+            long price,
+            Long originalPrice,
+            int availableStock,
+            boolean enabled
+    ) {}
+
+    public record ProductDetail(
+            String spuId,
+            String merchantId,
+            String title,
+            String subtitle,
+            String brand,
+            String categoryId,
+            String coverImage,
+            long minPrice,
+            long maxPrice,
+            long salesCount,
+            String status,
+            String publishedAt,
+            String descriptionHtml,
+            List<Image> images,
+            List<Sku> skus,
+            long version
+    ) {}
+
 }

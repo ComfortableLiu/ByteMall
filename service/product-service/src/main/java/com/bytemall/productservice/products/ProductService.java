@@ -7,6 +7,9 @@ import com.bytemall.productservice.entity.ProductSpu;
 import com.bytemall.productservice.mapper.ProductImageMapper;
 import com.bytemall.productservice.mapper.ProductSkuMapper;
 import com.bytemall.productservice.mapper.ProductSpuMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +17,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +28,11 @@ public class ProductService {
     private final ProductSkuMapper productSkuMapper;
     private final ProductImageMapper productImageMapper;
 
+
+    private final ObjectMapper objectMapper;
+    private final ProductStockClient productStockClient;
+
+    // 分页获取商品列表
     public ProductResponses.ProductPage getProductsList(int page, int size) {
         // 计算偏移量
         long offset = (page - 1L) * size;
@@ -87,4 +97,92 @@ public class ProductService {
         }).toList();
         return new ProductResponses.ProductPage(page, size, total, items);
     }
+
+
+    public Optional<ProductResponses.ProductDetail> getProductDetail(long spuId) {
+        ProductSpu spu = productSpuMapper.selectOne(
+                Wrappers.<ProductSpu>lambdaQuery()
+                        .eq(ProductSpu::getId, spuId)
+                        .eq(ProductSpu::getStatus, "ON_SALE"));
+        if (spu == null) {
+            return Optional.empty();
+        }
+
+
+        List<ProductResponses.Image> images = productImageMapper.selectList(
+                Wrappers.<ProductImage>lambdaQuery()
+                        .eq(ProductImage::getSpuId, spuId)
+                        //  按 is_primary 降序，主图（true）排在普通图（false）前面。
+                        .orderByDesc(ProductImage::getPrimaryImage)
+                        //  在主图标记相同的图片之间，先按 sort_order 从小到大排。如果 sort_order 也一样，就按 id 从小到大排。
+                        .orderByAsc(ProductImage::getSortOrder, ProductImage::getId)
+        ).stream().map(image -> new ProductResponses.Image(
+                image.getUrl(),
+                image.getAltText(),
+                image.getSortOrder(),
+                image.getPrimaryImage()
+        )).toList();
+
+
+        List<ProductSku> enabledSkus = productSkuMapper.selectList(
+                Wrappers.<ProductSku>lambdaQuery()
+                        .eq(ProductSku::getSpuId, spuId)
+                        .eq(ProductSku::getEnabled, true)
+                        .orderByAsc(ProductSku::getId)
+        );
+
+        Map<Long, Integer> stocks = productStockClient.getAvailableStocks(
+                enabledSkus.stream().map(ProductSku::getId).toList());
+        List<ProductResponses.Sku> skus = enabledSkus.stream()
+                .map(sku -> new ProductResponses.Sku(
+                        sku.getId().toString(),
+                        sku.getSkuCode(),
+                        readSpecs(sku),
+                        sku.getPrice(),
+                        sku.getOriginalPrice(),
+                        stocks.getOrDefault(sku.getId(), 0),
+                        true))
+                .toList();
+
+        LongSummaryStatistics prices = skus.stream()
+                .mapToLong(ProductResponses.Sku::price)
+                .summaryStatistics();
+        if (skus.isEmpty()) {
+            // ProductDetail.skus 要求至少一项。这类商品在公开详情中不可见。
+            return Optional.empty();
+        }
+
+        return Optional.of(new ProductResponses.ProductDetail(
+                spu.getId().toString(),
+                spu.getMerchantId().toString(),
+                spu.getTitle(),
+                spu.getSubtitle(),
+                spu.getBrand(),
+                spu.getCategoryId().toString(),
+                images.isEmpty() ? "" : images.get(0).url(),
+                prices.getMin(),
+                prices.getMax(),
+                spu.getSalesCount(),
+                spu.getStatus(),
+                spu.getPublishedAt().toString(),
+                spu.getDescriptionHtml(),
+                images,
+                skus,
+                spu.getVersion()
+        ));
+    };
+
+
+    private Map<String, String> readSpecs(ProductSku sku) {
+        try {
+            return objectMapper.readValue(
+                    sku.getSpecJson(), new TypeReference<Map<String, String>>() {
+                    });
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法解析 SKU 规格，skuId=" + sku.getId(), e);
+        }
+    }
+
+
 }
+
