@@ -1,5 +1,9 @@
 server:
-  port: 3001
+  port: 3003
+
+grpc:
+  server:
+    port: ${PAY_GRPC_PORT:9092}
 
 spring:
   application:

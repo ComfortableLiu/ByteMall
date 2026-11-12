@@ -10,14 +10,10 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ReconciliationService {
+public class InternalService {
 
-    public List<ReconciliationResponses.ReconciliationRecord> listMerchantRecords(LocalDate bizDate) {
+    public List<InternalResponses.ReconciliationRecord> internal(LocalDate bizDate) {
         log.info("Listing merchant reconciliation records for {}", bizDate);
         return List.of();
-    }
-
-    public void startJob(ReconciliationRequests.CreateJob request) {
-        log.info("Starting reconciliation job for {} on {}", request.channel(), request.bizDate());
     }
 }

@@ -10,6 +10,7 @@ const ProductPage = lazy(() => import('./pages/buyer/ProductPage.tsx'))
 const CartPage = lazy(() => import('./pages/buyer/CartPage.tsx'))
 const CheckoutPage = lazy(() => import('./pages/buyer/CheckoutPage.tsx'))
 const PaymentPage = lazy(() => import('./pages/buyer/PaymentPage.tsx'))
+const ProviderPaymentPage = lazy(() => import('./pages/buyer/ProviderPaymentPage.tsx'))
 const OrdersPage = lazy(() => import('./pages/buyer/OrdersPage.tsx'))
 const OrderDetailPage = lazy(() => import('./pages/buyer/OrderDetailPage.tsx'))
 const AccountPage = lazy(() => import('./pages/buyer/AccountPage.tsx'))
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="cart" element={<RequireAuth><CartPage /></RequireAuth>} />
           <Route path="checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
           <Route path="payment/:orderNo" element={<RequireAuth><PaymentPage /></RequireAuth>} />
+          <Route path="sandbox/pay/:payNo" element={<RequireAuth><ProviderPaymentPage /></RequireAuth>} />
           <Route path="orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
           <Route path="orders/:orderNo" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
           <Route path="account" element={<RequireAuth><AccountPage /></RequireAuth>} />

@@ -9,11 +9,18 @@ option java_package = "com.bytemall.stock.proto";
 service StockService {
   // 批量查询可售库存、库存版本和不存在的 SKU。
   rpc GetAvailableStocks (GetAvailableStocksRequest) returns (GetAvailableStocksResponse);
-}
 
-message GetAvailableStocksRequest {
-  // 单次支持1到100个SKU ID，服务端会自动去重。
-  repeated string sku_ids = 1;
+  // 创建订单时整体预扣多个 SKU
+  // 校验数量与明细 → 校验幂等键和请求指纹 → 按固定顺序锁定/更新 SKU → 检查可售量 → 条件更新 available、reserved 和版本 → 同事务保存预扣单、明细及流水 → 返回 RESERVED。任一明细失败则整体回滚；库存不足返回 RESOURCE_EXHAUSTED，重复请求返回首次结果。
+  rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
+
+  // 订单支付事件处理器。用途：支付成功后将预扣转为确认扣减。
+  // 按预扣单号加锁查询 → 已确认则直接返回首次结果 → 已释放则返回 FAILED_PRECONDITION → 同时扣减 total 和 reserved 并递增版本 → 保存库存流水 → 返回确认结果。不得对同一预扣重复扣减。
+  rpc ConfirmReservation (ConfirmReservationRequest) returns (ConfirmReservationResponse);
+
+  // 订单取消或创建失败时回补预扣库存。
+  // 校验释放原因 → 加锁查询预扣单 → 已释放则幂等返回 → 已确认则返回 FAILED_PRECONDITION → 增加 available、减少 reserved 并递增版本 → 保存释放原因和流水 → 返回释放结果。禁止 CONFIRMED → RELEASED。
+  rpc ReleaseReservation (ReleaseReservationRequest) returns (ReleaseReservationResponse);
 }
 
 message AvailableStock {
@@ -23,10 +30,71 @@ message AvailableStock {
   // 用于识别库存变更和防止旧数据覆盖新数据。
   int64 version = 3;
 }
+message ReservationItem{
+  uint64 sku_id = 1;
+  int32 quantity = 2;
+}
 
+message GetAvailableStocksRequest {
+  // 单次支持1到100个SKU ID，服务端会自动去重。
+  repeated string sku_ids = 1;
+}
 message GetAvailableStocksResponse {
   // 存在库存记录的SKU。
   repeated AvailableStock items = 1;
   // 没有库存记录的SKU，不能与可售库存为0混淆。
   repeated string missing_sku_ids = 2;
+}
+
+message ReserveStockRequest{
+  //  预扣单号，由订单创建方在调用前生成
+  string reservation_no = 1;
+  //  业务订单号
+  string order_no = 2;
+  //  预扣过期时间，ISO 8601
+  string expire_at = 3;
+  //  至少一项；每项包含 sku_id 和正整数 quantity
+  repeated ReservationItem items = 4;
+}
+message ReserveStockResponse{
+  //  预扣单号，由订单创建方在调用前生成
+  string reservation_no = 1;
+  //  业务订单号
+  string order_no = 2;
+  //  成功时为 RESERVED
+  string status = 3;
+  //  实际预扣明细
+  repeated ReservationItem items = 4;
+}
+
+message ConfirmReservationRequest{
+  //  预扣单号，由订单创建方在调用前生成
+  string reservation_no = 1;
+}
+message ConfirmReservationResponse{
+  //  预扣单号，由订单创建方在调用前生成
+  string reservation_no = 1;
+  //  关联订单号
+  string order_no = 2;
+  //  成功时为 CONFIRMED
+  string status = 3;
+  //  已确认扣减明细
+  repeated ReservationItem items = 4;
+}
+
+message ReleaseReservationRequest{
+  // 预扣单号，由订单创建方在调用前生成
+  string reservation_no = 1;
+  // 释放原因
+  string reason = 2;
+}
+message ReleaseReservationResponse{
+  // 预扣单号，由订单创建方在调用前生成
+  string reservation_no = 1;
+  // 关联订单号
+  string order_no = 2;
+  // 成功时为 RELEASED
+  string status = 3;
+  // 已回补明细
+  repeated ReservationItem items = 4;
 }

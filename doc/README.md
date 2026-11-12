@@ -26,7 +26,7 @@ ByteMall 是一个多商家电商系统。本目录是产品、前端和后端�
 
 ## 全局契约
 
-- API 前缀：`/api/v1`；契约版本：OpenAPI 3.1。
+- 外部 REST API 前缀：`/api/v1`，契约版本：OpenAPI 3.1；内部同步 RPC 统一使用 gRPC + Protobuf，契约见[服务间 RPC 与 Kafka](./service-integration.md)。
 - JSON 字段使用 `camelCase`，数据库字段使用 `snake_case`。
 - 金额一律为人民币分，JSON 使用整数，例如 `129900` 表示 ¥1,299.00；前端只在展示层格式化。
 - ID、用户 ID、商家 ID、订单号、支付号均使用字符串，避免 JavaScript 长整型精度丢失。

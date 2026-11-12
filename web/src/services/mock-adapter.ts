@@ -22,7 +22,7 @@ import type {
   StockRecord,
   User,
 } from '../types/domain.ts'
-import type { LoginOptions } from './api.ts'
+import type { LoginOptions, MockPaymentCallbackInput, MockPaymentNotification } from './api.ts'
 
 export class DomainError extends Error {
   readonly code: string
@@ -587,6 +587,34 @@ export class MockAdapter {
     return clone(payment)
   }
 
+  async mockPaymentCallback(input: MockPaymentCallbackInput): Promise<string> {
+    if (input.status === 'SUCCESS') {
+      await this.completeMockPayment(input.payNo)
+      return 'success'
+    }
+
+    await this.wait()
+    const user = this.buyer()
+    const payment = this.state.payments.find((item) => item.payNo === input.payNo && item.userId === user.userId)
+    if (!payment) throw new DomainError('RESOURCE_NOT_FOUND', '支付单不存在', 404)
+    if (payment.status === 'FAILED') return 'success'
+    if (payment.status !== 'PENDING') throw new DomainError('INVALID_STATE_TRANSITION', '支付单当前不可完成', 409)
+    payment.status = 'FAILED'
+    this.commit()
+    return 'success'
+  }
+
+  async queryMockPayment(input: MockPaymentCallbackInput): Promise<MockPaymentNotification> {
+    await this.wait()
+    return {
+      notifyId: `MOCK-NOTIFY-${input.orderNo}`,
+      orderNo: input.orderNo,
+      amount: input.amount,
+      status: input.status,
+      signature: 'mock-signature',
+    }
+  }
+
   async getPayment(payNo: string): Promise<Payment> {
     await this.wait()
     const user = this.buyer()
@@ -600,7 +628,9 @@ export class MockAdapter {
     const user = this.buyer()
     const payment = this.state.payments.find((item) => item.payNo === payNo && item.userId === user.userId)
     if (!payment) throw new DomainError('RESOURCE_NOT_FOUND', '支付单不存在', 404)
-    if (payment.channel !== 'MOCK') throw new DomainError('FORBIDDEN', '仅模拟渠道支持此操作', 403)
+    if (payment.channel !== 'MOCK' && payment.channel !== 'ALIPAY') {
+      throw new DomainError('FORBIDDEN', '仅模拟支付渠道支持此操作', 403)
+    }
     if (payment.status === 'SUCCESS') return clone(payment)
     if (payment.status !== 'PENDING') throw new DomainError('INVALID_STATE_TRANSITION', '支付单当前不可完成', 409)
     const order = this.state.orders.find((item) => item.orderNo === payment.orderNo)

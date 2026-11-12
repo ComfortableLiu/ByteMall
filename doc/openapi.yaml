@@ -28,7 +28,7 @@ tags:
   - name: Payment
     description: 支付单、渠道回调和对账。
   - name: Internal
-    description: 仅限服务身份或支付渠道调用的内部契约。
+    description: 三方支付渠道回调及非生产模拟 HTTP 接口；内部同步 RPC 不使用此标签，统一采用 gRPC。
 paths:
   /auth/register:
     post:
@@ -877,22 +877,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PaymentResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
-  /payments/{payNo}/close:
-    parameters:
-      - $ref: '#/components/parameters/PayNo'
-    post:
-      tags: [Payment]
-      operationId: closePayment
-      summary: 关闭待支付支付单
-      responses:
-        default: { $ref: '#/components/responses/DefaultError' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '200':
-          description: 已关闭支付单
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PaymentResponse' }
-        '409': { $ref: '#/components/responses/Conflict' }
   /payments/{payNo}/mock-complete:
     parameters:
       - $ref: '#/components/parameters/PayNo'
@@ -909,90 +893,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PaymentResponse' }
         '409': { $ref: '#/components/responses/Conflict' }
-  /internal/stocks/reservations:
-    post:
-      tags: [Internal, Stock]
-      operationId: reserveStock
-      security:
-        - serviceAuth: []
-      summary: 内部整体预扣库存
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/StockReservationInput' }
-      responses:
-        default: { $ref: '#/components/responses/DefaultError' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '201':
-          description: 预扣结果
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/StockReservationResponse' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /internal/stocks/reservations/{reservationNo}/confirm:
-    parameters:
-      - name: reservationNo
-        in: path
-        required: true
-        schema: { type: string }
-    post:
-      tags: [Internal, Stock]
-      operationId: confirmStockReservation
-      security:
-        - serviceAuth: []
-      summary: 内部确认库存扣减
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        default: { $ref: '#/components/responses/DefaultError' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '200':
-          description: 确认后的预扣单
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/StockReservationResponse' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /internal/stocks/reservations/{reservationNo}/release:
-    parameters:
-      - name: reservationNo
-        in: path
-        required: true
-        schema: { type: string }
-    post:
-      tags: [Internal, Stock]
-      operationId: releaseStockReservation
-      security:
-        - serviceAuth: []
-      summary: 内部释放预扣库存
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reason]
-              properties:
-                reason: { type: string, minLength: 1, maxLength: 64 }
-      responses:
-        default: { $ref: '#/components/responses/DefaultError' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '200':
-          description: 释放后的预扣单
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/StockReservationResponse' }
-        '409': { $ref: '#/components/responses/Conflict' }
   /internal/payment-callbacks/{channel}:
     parameters:
       - name: channel
         in: path
         required: true
-        schema: { type: string, enum: [ALIPAY, WECHAT] }
+        schema: { type: string, enum: [ALIPAY, WECHAT, MOCK] }
     post:
       tags: [Internal, Payment]
       operationId: receivePaymentCallback
@@ -1014,6 +920,31 @@ paths:
       responses:
         '200': { description: 验签和业务接收成功；实际响应体遵循渠道协议 }
         '400': { description: 验签失败、金额不符或请求无效 }
+  /internal/mock-payments/query:
+    get:
+      tags: [Internal, Payment]
+      operationId: queryMockPayment
+      security: []
+      summary: 非生产环境模拟三方支付查询，按参数返回固定结果
+      parameters:
+        - name: orderNo
+          in: query
+          required: true
+          schema: { type: string }
+        - name: amount
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [SUCCESS, FAILED], default: SUCCESS }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '200':
+          description: 模拟支付通知
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MockPaymentNotificationResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
   /merchant/reconciliations:
     get:
       tags: [Payment]
@@ -1032,35 +963,12 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReconciliationListResponse' }
-  /internal/payments/reconciliation-jobs:
-    post:
-      tags: [Internal, Payment]
-      operationId: startPaymentReconciliation
-      security:
-        - serviceAuth: []
-      summary: 启动异步支付对账
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [channel, bizDate]
-              properties:
-                channel: { type: string, enum: [ALIPAY, WECHAT] }
-                bizDate: { type: string, format: date }
-      responses:
-        default: { $ref: '#/components/responses/DefaultError' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '202': { description: 对账任务已接受 }
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-    serviceAuth:
-      type: mutualTLS
   parameters:
     Page:
       name: page
@@ -1622,36 +1530,6 @@ components:
             data:
               type: array
               items: { $ref: '#/components/schemas/MerchantStockItem' }
-    StockReservationInput:
-      type: object
-      required: [reservationNo, orderNo, expireAt, items]
-      properties:
-        reservationNo: { type: string }
-        orderNo: { type: string }
-        expireAt: { type: string, format: date-time }
-        items:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required: [skuId, quantity]
-            properties:
-              skuId: { type: string }
-              quantity: { type: integer, minimum: 1 }
-    StockReservation:
-      allOf:
-        - $ref: '#/components/schemas/StockReservationInput'
-        - type: object
-          required: [status]
-          properties:
-            status: { type: string, enum: [RESERVED, CONFIRMED, RELEASED] }
-            reason: { type: string }
-    StockReservationResponse:
-      allOf:
-        - $ref: '#/components/schemas/SuccessResponse'
-        - type: object
-          properties:
-            data: { $ref: '#/components/schemas/StockReservation' }
     PaymentChannel:
       type: string
       enum: [MOCK, ALIPAY, WECHAT]
@@ -1681,6 +1559,21 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/Payment' }
+    MockPaymentNotification:
+      type: object
+      required: [notifyId, orderNo, amount, status, signature]
+      properties:
+        notifyId: { type: string, description: "固定为 MOCK-NOTIFY-{orderNo}" }
+        orderNo: { type: string }
+        amount: { type: integer, minimum: 0 }
+        status: { type: string, enum: [SUCCESS, FAILED] }
+        signature: { type: string, description: 固定为 mock-signature }
+    MockPaymentNotificationResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/MockPaymentNotification' }
     ReconciliationRecord:
       type: object
       required: [channel, channelTradeNo, bizDate, channelAmount, localAmount, status]

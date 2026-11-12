@@ -1,5 +1,5 @@
 server:
-  port: 3001
+  port: 3004
 aliyun:
   oss:
     endpoint: ${ALIYUN_OSS_ENDPOINT:https://oss-cn-beijing.aliyuncs.com}

@@ -5,7 +5,7 @@
 - Base URL：`/api/v1`
 - 格式：HTTPS + JSON；请求和响应默认 `application/json; charset=utf-8`。
 - 认证：`Authorization: Bearer <accessToken>`；公开接口除外。
-- 内部接口：`/internal/**` 不经过买家鉴权，使用独立服务身份并仅在内网暴露。
+- 内部服务间同步调用统一使用 gRPC，契约见[服务间 RPC 与 Kafka](./service-integration.md)；`/internal/**` 仅用于三方 HTTP 回调和模拟接口，不作为内部 RPC 协议。
 - 机器契约：[openapi.yaml](./openapi.yaml)。本文解释业务语义，两者不一致时必须一起修正，不能静默选择其一。
 
 ### 1.1 通用请求头
@@ -270,15 +270,15 @@
 
 ### 8.2 内部预扣命令
 
-以下接口要求服务身份，不能由浏览器直接调用：
+内部预扣命令全部使用 **gRPC**，不提供 `/internal/stocks/reservations` REST 路径，完整契约见[服务间 RPC 与 Kafka](./service-integration.md)。
 
-| 方法 | 路径 | 成功 | 语义 |
-| --- | --- | --- | --- |
-| POST | `/internal/stocks/reservations` | 201 `StockReservation` | 整体预扣多个 SKU |
-| POST | `/internal/stocks/reservations/{reservationNo}/confirm` | 200 `StockReservation` | 支付后确认扣减 |
-| POST | `/internal/stocks/reservations/{reservationNo}/release` | 200 `StockReservation` | 取消/失败补偿回补 |
+| gRPC 方法 | 调用方 | 语义 |
+| --- | --- | --- |
+| `StockService.ReserveStock` | `order-service` | 整体预扣多个 SKU |
+| `StockService.ConfirmReservation` | 订单事件处理器 | 支付后确认扣减 |
+| `StockService.ReleaseReservation` | `order-service` | 取消或失败补偿回补 |
 
-预扣请求：`reservationNo`、`orderNo`、`expireAt`、`items[{skuId,quantity}]`，并携带 `Idempotency-Key` 和 `X-Request-Id`。释放请求：`reason`（`USER`、`TIMEOUT`、`ORDER_CREATE_FAILED` 等）。确认和释放均幂等，但终态冲突返回 409。
+预扣请求包含 `reservationNo`、`orderNo`、`expireAt`、`items[{skuId,quantity}]`，并携带 `idempotency-key` 和 `x-request-id`。释放请求包含 `reason`（`USER`、`TIMEOUT`、`ORDER_CREATE_FAILED` 等）。确认和释放均幂等，终态冲突返回 `FAILED_PRECONDITION`。
 
 ## 9. pay-service
 
@@ -288,7 +288,6 @@
 | --- | --- | --- | --- | --- |
 | POST | `/payments` | BUYER | 201 `Payment` | 需幂等键；校验本人待支付订单和应付金额 |
 | GET | `/payments/{payNo}` | BUYER | 200 `Payment` | 查询可信服务端状态 |
-| POST | `/payments/{payNo}/close` | BUYER | 200 `Payment` | 仅待支付；已成功的支付不能关闭 |
 | POST | `/payments/{payNo}/mock-complete` | BUYER + 非生产 | 200 `Payment` | 模拟回调后的成功状态，用于前端演示 |
 
 创建请求：
@@ -304,6 +303,8 @@
 
 创建支付时如果已有同订单有效支付单，返回现有单；若旧单已失效可创建新单。支付渠道超时保持 `PENDING`，先查单，禁止立即创建另一笔可能造成重复扣款的支付。
 
+关闭支付单统一使用 gRPC `PaymentService.CloseOrder`，不再提供 `/payments/{payNo}/close` REST 接口；调用必须携带 `pay_no` 和 `idempotency-key`，不能将成功支付单改为关闭。
+
 ### 9.2 支付回调
 
 `POST /internal/payment-callbacks/{channel}`，公开给对应渠道通知入口但不要求用户 Bearer。必须：
@@ -314,12 +315,22 @@
 4. 验签失败、金额不符或未知订单返回失败并告警，不能标记成功。
 5. 渠道超时按渠道协议重试；服务端消费必须幂等，响应体使用渠道规定格式而非统一 API 包装。
 
-### 9.3 对账
+### 9.3 模拟三方查单（非生产）
+
+| 方法 | 路径 | 权限 | 成功 | 说明 |
+| --- | --- | --- | --- | --- |
+| GET | `/internal/mock-payments/query` | 非生产模拟 | 200 `PaymentNotification` | 按参数返回固定的成功或失败结果，不查询真实支付渠道 |
+
+查询参数：`orderNo` 必填，`amount` 可选（默认 0，单位分），`status` 可选（默认 `SUCCESS`，仅允许 `SUCCESS` 或 `FAILED`）。返回字段为 `notifyId`、`orderNo`、`amount`、`status`、`signature`。其中 `notifyId` 为 `MOCK-NOTIFY-{orderNo}`，`signature` 固定为 `mock-signature`。
+
+沙箱页面先调用 `POST /internal/payment-callbacks/MOCK`，再调用该查单接口。回调骨架当前只记录通知并返回 `success`，不代表真实支付单、订单或库存已经更新。模拟查单结果仅用于演示主动查询流程，不能作为真实支付状态依据。
+
+### 9.4 对账
 
 | 方法 | 路径 | 权限 | 成功 | 说明 |
 | --- | --- | --- | --- | --- |
 | GET | `/merchant/reconciliations` | MERCHANT | 200 `ReconciliationRecord[]` | 当前商家按日期查询对账差异 |
-| POST | `/internal/payments/reconciliation-jobs` | 服务身份 | 202 | `{channel,bizDate}` 启动异步对账 |
+| gRPC `PaymentService.StartReconciliationJob` | 调度服务身份 | 返回任务 ID | `{channel,bizDate}` 启动异步对账，不使用 `/internal/payments/reconciliation-jobs` REST 路径 |
 
 对账任务拉取渠道账单，与本地支付/退款按交易号核对。差异进入 `reconciliation_record`，自动修复只能执行明确且幂等的规则，其他情况人工复核。
 

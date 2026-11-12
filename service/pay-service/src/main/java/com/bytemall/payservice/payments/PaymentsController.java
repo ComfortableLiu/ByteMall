@@ -33,9 +33,4 @@ public class PaymentsController {
     public ApiResponse<PaymentResponses.Payment> get(@PathVariable String payNo) {
         return ApiResponse.ok(paymentsService.get(payNo));
     }
-
-    @PostMapping("/{payNo}/close")
-    public ApiResponse<PaymentResponses.Payment> close(@PathVariable String payNo) {
-        return ApiResponse.ok(paymentsService.close(payNo));
-    }
 }

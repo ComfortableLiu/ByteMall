@@ -5,6 +5,7 @@ import type {
   PageResult,
   Payment,
   PaymentChannel,
+  PaymentStatus,
   ProductDetail,
   ProductSearchQuery,
   ProductSummary,
@@ -18,7 +19,24 @@ export interface CommerceApi {
   getCart(): Promise<Cart>
   createOrder(input: CreateOrderInput, idempotencyKey: string): Promise<Order>
   createPayment(orderNo: string, channel: PaymentChannel, idempotencyKey: string): Promise<Payment>
+  mockPaymentCallback(input: MockPaymentCallbackInput): Promise<string>
+  queryMockPayment(input: MockPaymentCallbackInput): Promise<MockPaymentNotification>
   uploadProductImage(file: File): Promise<{ url: string }>
+}
+
+export interface MockPaymentCallbackInput {
+  payNo: string
+  orderNo: string
+  amount: number
+  status: Extract<PaymentStatus, 'SUCCESS' | 'FAILED'>
+}
+
+export interface MockPaymentNotification {
+  notifyId: string
+  orderNo: string
+  amount: number
+  status: 'SUCCESS' | 'FAILED'
+  signature: string
 }
 
 export interface LoginOptions {

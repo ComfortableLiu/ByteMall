@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package com.bytemall.payments;
+
+option java_multiple_files = true;
+option java_package = "com.bytemall.payment.proto";
+
+// 库存服务：为购物车等其他服务提供实时库存查询能力。
+service PaymentService {
+  // 结算服务或 pay-service 的公开接口适配层。用途：为待支付订单创建支付单并返回收银台参数。
+  // 校验幂等键和请求指纹 → 调用 OrderService.GetPaymentContext → 校验订单归属、状态和金额 → 复用同订单有效支付单 → 本地事务创建 PENDING 支付单 → 调用对应渠道适配器下单 → 返回 pay_no 和收银台参数。客户端不能传入金额，渠道超时不能立即判失败或重复扣款。
+  rpc CreatePayment (CreatePaymentRequest) returns (CreatePaymentResponse);
+
+  // 查询可信支付单状态。
+  // 校验支付单号 → 查询支付单 → 校验调用方是否有权读取该订单 → 返回数据库中的可信状态。前端轮询只用于展示，不能直接触发成功状态。
+  rpc GetPayment (GetPaymentRequest) returns (GetPaymentResponse);
+
+  // 关闭支付单
+  rpc CloseOrder (CloseOrderRequest) returns (CloseOrderResponse);
+
+  // 启动异步支付对账。
+  // 校验渠道和账期 → 创建唯一任务 ID → 在同一事务中写入 Outbox ReconciliationRequested → 立即返回任务 ID → 后台任务拉取渠道账单并按交易号核对 → 差异写入 reconciliation_record → 可自动修复的按明确规则处理，其余告警并人工复核。不能用同步 RPC 等待整份账单处理完成。
+  rpc StartReconciliationJob (StartReconciliationJobRequest) returns (StartReconciliationJobResponse);
+}
+
+message CloseOrderRequest {
+  string payNo = 1;
+}
+message CloseOrderResponse {
+  string payNo = 1;
+  string orderNo = 2;
+  uint64 userId = 3;
+  string channel = 4;
+  uint64 amount = 5;
+  string status = 6;
+  string cashierToken = 7;
+  string expireAt = 8;
+  string paidAt = 9;
+  string createdAt = 10;
+}
+
+message CreatePaymentRequest {
+  // 待支付订单号
+  string order_no = 1;
+  // 支付渠道
+  string channel = 2;
+}
+message CreatePaymentResponse {
+  // 支付单号
+  string payNo = 1;
+  // 业务订单号
+  string orderNo = 2;
+  // 买家 ID，项目统一序列化为字符串
+  string userId = 3;
+  // 支付渠道
+  string channel = 4;
+  // 应付金额，单位分
+  uint64 amount = 5;
+  // 初始为 PENDING
+  string status = 6;
+  // 收银台令牌或渠道支付参数，不记录明文日志
+  string cashierToken = 7;
+  // 支付截止时间
+  string expireAt = 8;
+  // 支付成功时间，未支付时为空
+  string paidAt = 9;
+  // 创建时间
+  string createdAt = 10;
+}
+
+message GetPaymentRequest{
+  // 支付单号
+  string payNo = 1;
+}
+message GetPaymentResponse{
+  // 支付单号
+  string payNo = 1;
+  // 业务订单号
+  string orderNo = 2;
+  // 买家 ID
+  string userId = 3;
+  // 支付渠道
+  string channel = 4;
+  // 支付金额，单位分
+  uint64 amount = 5;
+  // PENDING、SUCCESS、FAILED 或 CLOSED
+  string status = 6;
+  // 收银台令牌或渠道支付参数，不记录明文日志
+  string cashierToken = 7;
+  // 支付截止时间
+  string expireAt = 8;
+  // 支付成功时间，未支付时为空
+  string paidAt = 9;
+  // 创建时间
+  string createdAt = 10;
+}
+
+message StartReconciliationJobRequest {
+  // 渠道
+  string channel = 1;
+  // 渠道账单业务日期，不能晚于当天
+  string bizDate = 2;
+}
+message StartReconciliationJobResponse {
+  // 对账任务 ID
+  string jobId = 1;
+  // 对账渠道
+  string channel = 2;
+  // 对账业务日期
+  string bizDate = 3;
+  // 接受后使用 QUEUED 或 ACCEPTED
+  string status = 4;
+  // 任务创建时间
+  string createdAt = 5;
+}

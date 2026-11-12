@@ -23,7 +23,7 @@ import type {
   StockRecord,
   User,
 } from '../types/domain.ts'
-import type { LoginOptions } from './api.ts'
+import type { LoginOptions, MockPaymentCallbackInput, MockPaymentNotification } from './api.ts'
 import { DomainError } from './mock-adapter.ts'
 
 type RequestOptions = {
@@ -101,12 +101,14 @@ export class RemoteAdapter {
         body: options.formData ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
         credentials: 'include',
       })
+      const contentType = response.headers.get('content-type') ?? ''
       const text = await response.text()
-      const payload = text ? JSON.parse(text) : null
+      const payload = text && contentType.includes('application/json') ? JSON.parse(text) : null
       if (!response.ok) {
-        throw new DomainError(payload?.code ?? 'HTTP_ERROR', payload?.message ?? `线上请求失败（${response.status}）`, response.status)
+        throw new DomainError(payload?.code ?? 'HTTP_ERROR', payload?.message ?? (text || `线上请求失败（${response.status}）`), response.status)
       }
-      return payload?.data as T
+      if (contentType.includes('application/json')) return payload?.data as T
+      return text as T
     } catch (error) {
       if (error instanceof DomainError) throw error
       if (error instanceof SyntaxError) throw new DomainError('INVALID_API_RESPONSE', '线上服务返回了无法解析的响应', 502)
@@ -313,6 +315,34 @@ export class RemoteAdapter {
     const payment = await this.request<Payment>('/payments', { method: 'POST', body: { orderNo, channel }, idempotencyKey })
     this.syncPayment(payment)
     return payment
+  }
+
+  async mockPaymentCallback(input: MockPaymentCallbackInput): Promise<string> {
+    return this.request<string>('/internal/payment-callbacks/MOCK', {
+      method: 'POST',
+      body: {
+        notifyId: globalThis.crypto?.randomUUID?.() ?? `mock-${Date.now()}`,
+        orderNo: input.orderNo,
+        amount: input.amount,
+        status: input.status,
+        signature: 'mock-signature',
+      },
+    })
+  }
+
+  async queryMockPayment(input: MockPaymentCallbackInput): Promise<MockPaymentNotification> {
+    const result = await this.request<MockPaymentNotification>('/internal/mock-payments/query', {
+      query: { orderNo: input.orderNo, amount: input.amount, status: input.status },
+    })
+    const payment = this.state.payments.find((item) => item.payNo === input.payNo)
+    if (payment) {
+      this.syncPayment({
+        ...payment,
+        status: result.status,
+        paidAt: result.status === 'SUCCESS' ? new Date().toISOString() : undefined,
+      })
+    }
+    return result
   }
 
   async getPayment(payNo: string): Promise<Payment> {

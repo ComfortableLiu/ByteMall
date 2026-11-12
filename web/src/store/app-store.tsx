@@ -29,6 +29,8 @@ function buildActions(api: AppAdapter, invoke: Invoke) {
     createPayment: (...args: Parameters<MockAdapter['createPayment']>) => invoke(() => api.createPayment(...args)),
     getPayment: (payNo: string) => invoke(() => api.getPayment(payNo)),
     completeMockPayment: (payNo: string) => invoke(() => api.completeMockPayment(payNo)),
+    mockPaymentCallback: (input: { payNo: string; orderNo: string; amount: number; status: 'SUCCESS' | 'FAILED' }) => invoke(() => api.mockPaymentCallback(input)),
+    queryMockPayment: (input: { payNo: string; orderNo: string; amount: number; status: 'SUCCESS' | 'FAILED' }) => invoke(() => api.queryMockPayment(input)),
     closePayment: (payNo: string) => invoke(() => api.closePayment(payNo)),
     uploadProductImage: (file: File) => invoke(() => api.uploadProductImage(file)),
     saveAddress: (...args: Parameters<MockAdapter['saveAddress']>) => invoke(() => api.saveAddress(...args)),
