@@ -1,4 +1,4 @@
-package com.bytemall.stockservice.internal;
+package com.bytemall.stockservice.grpc;
 
 import com.bytemall.stock.proto.AvailableStock;
 import com.bytemall.stock.proto.GetAvailableStocksRequest;
@@ -47,6 +47,8 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
                     .asRuntimeException());
         }
     }
+
+
 
     /**
      * 批量查询库存：去重后一次查询数据库，找不到的SKU单独放入missingSkuIds。

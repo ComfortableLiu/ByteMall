@@ -131,7 +131,7 @@ GetAvailableStocksResponse response =
 
 ### 3.2 `PaymentService.CloseOrder`
 
-`payment.proto` 已声明 `CloseOrder` 方法及请求/响应消息，服务端尚未完成联调。当前 Proto 字段仍使用 `payNo` 等 camelCase 写法，需按本文约定统一为 `snake_case`。
+以下按“关闭业务订单对应的待支付支付单”定义业务契约。`payment.proto` 和服务端 `MOCK` 渠道关单流程已实现；`ALIPAY`、`WECHAT` 仍需接入真实渠道关单或查单适配器。
 
 ```proto
 service PaymentService {
@@ -139,31 +139,37 @@ service PaymentService {
 }
 
 message CloseOrderRequest {
-  string pay_no = 1;
+  string order_no = 1;
+  string reason = 2;
 }
 
 message CloseOrderResponse {
-  string pay_no = 1;
-  string order_no = 2;
-  uint64 user_id = 3;
-  string channel = 4;
-  uint64 amount = 5;
-  string status = 6;
-  string cashier_token = 7;
-  string expire_at = 8;
-  string paid_at = 9;
-  string created_at = 10;
+  string order_no = 1;
+  string pay_no = 2;
+  string status = 3;
+  string closed_at = 4;
 }
 ```
 
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `order_no` | string | 是 | 需要关闭支付的业务订单号，由支付服务定位该订单当前的待支付支付单 |
+| 入参 | `reason` | string | 是 | 关闭原因：`ORDER_CANCELLED`、`PAYMENT_TIMEOUT` 或 `RISK_REJECTED` |
+| 出参 | `order_no` | string | 是 | 业务订单号 |
+| 出参 | `pay_no` | string | 是 | 实际被关闭的支付单号；幂等重复调用时返回首次关闭的支付单号 |
+| 出参 | `status` | string | 是 | 关闭后的支付单状态，固定为 `CLOSED` |
+| 出参 | `closed_at` | string(date-time) | 是 | 支付服务记录的关闭时间，ISO 8601；幂等重复调用时保持首次关闭时间 |
+
+调用方还必须通过 gRPC 元数据传入 `idempotency-key` 和 `x-request-id`。相同幂等键对应不同 `order_no` 或 `reason` 时返回 `ABORTED`。
+
 业务约束：
 
-- 仅允许 `PENDING → CLOSED`；已成功的支付单不能关闭。
-- 已关闭的支付单重复调用返回首次关闭结果。
-- 其他状态迁移返回 `FAILED_PRECONDITION`，不能将成功支付单改为关闭。
+- 请求只表达“关闭哪个业务订单的支付、为什么关闭”，不要求调用方提前查询支付单号，也不接收用户 ID、金额、渠道或收银台参数。
+- 仅允许 `PENDING → CLOSED`；已关闭则幂等返回首次关闭结果；已成功支付返回 `FAILED_PRECONDITION`，并触发支付状态核对，不能改为关闭。
+- 订单从未创建支付单时返回 `NOT_FOUND`。响应不返回完整支付单，需要完整信息时另行调用 `GetPayment`。
 - 关闭支付单只提供 gRPC 接口，不提供买家 REST 关闭路径。
 
-处理流程：按 `pay_no` 加锁查询支付单 → 已关闭则幂等返回 → 非 `PENDING` 返回 `FAILED_PRECONDITION` → 条件更新为 `CLOSED` 并递增版本 → 根据渠道适配器能力关闭渠道侧订单 → 返回最新支付单。不能让已成功支付单进入关闭状态。
+处理流程：校验参数和幂等键 → 按 `order_no` 查询并锁定当前支付单 → 校验支付状态 → 请求渠道关闭或查单，确认未支付 → 条件更新为 `CLOSED`，保存关闭原因和时间并递增版本 → 返回关闭结果。渠道结果未知时不能宣称关闭成功，应返回可重试错误并继续核对渠道状态；回调和关闭操作必须基于同一支付单状态做并发控制。
 
 ### 3.3 三方 HTTP 接口不属于内部 gRPC
 
@@ -278,11 +284,13 @@ message CloseOrderResponse {
 
 处理逻辑：校验支付单号 → 查询支付单 → 校验调用方是否有权读取该订单 → 返回数据库中的可信状态。前端轮询只用于展示，不能直接触发成功状态。
 
-#### 4.2.3 `CloseOrder`（已有 Proto 声明和待修正服务端骨架）
+#### 4.2.3 `CloseOrder`（MOCK 流程已实现，真实渠道待接入）
 
-调用方：内部服务。用途：关闭待支付支付单。出入参和状态约束见 3.2，不再提供 `/payments/{payNo}/close` REST 接口。
+调用方：`order-service` 或其他受信任的内部服务。用途：业务订单取消、支付超时或风控拒绝时，按 `order_no` 关闭该订单当前的待支付支付单。请求包含 `order_no`、`reason`，响应只包含 `order_no`、`pay_no`、`status` 和 `closed_at`；完整出入参及状态约束见 3.2。不再提供 `/payments/{payNo}/close` REST 接口。
 
-处理逻辑：按 `pay_no` 加锁查询 → 已关闭则幂等返回 → 非 `PENDING` 返回 `FAILED_PRECONDITION` → 条件更新为 `CLOSED` 并递增版本 → 按渠道适配器能力关闭渠道侧订单 → 返回最新支付单。不能让已成功支付单进入关闭状态。
+处理逻辑：校验参数和幂等键 → 按 `order_no` 查询并锁定当前支付单 → 已关闭则幂等返回 → 已成功等不可关闭状态返回 `FAILED_PRECONDITION` → 请求渠道关闭或查单并确认未支付 → 条件更新为 `CLOSED`，记录关闭原因、关闭时间和新版本 → 返回关闭结果。渠道状态未知时返回可重试错误，不能提前返回关闭成功。
+
+当前实现使用 `payment_order.updated_at` 保存关闭时间，使用 `payment_transaction` 的 `CLOSE` 流水保存关闭原因；重复关闭根据 `CLOSED` 状态幂等返回。`idempotency-key` 的请求指纹持久化及真实渠道适配器尚未接入。
 
 #### 4.2.4 `StartReconciliationJob`（规划）
 

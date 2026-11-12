@@ -24,19 +24,21 @@ service PaymentService {
 }
 
 message CloseOrderRequest {
-  string payNo = 1;
+  // 需要关闭支付的业务订单号，由支付服务定位当前的待支付支付单。
+  string order_no = 1;
+  // 关闭原因：ORDER_CANCELLED、PAYMENT_TIMEOUT 或 RISK_REJECTED。
+  string reason = 2;
 }
+
 message CloseOrderResponse {
-  string payNo = 1;
-  string orderNo = 2;
-  uint64 userId = 3;
-  string channel = 4;
-  uint64 amount = 5;
-  string status = 6;
-  string cashierToken = 7;
-  string expireAt = 8;
-  string paidAt = 9;
-  string createdAt = 10;
+  // 业务订单号。
+  string order_no = 1;
+  // 实际被关闭的支付单号，幂等重复调用时保持首次结果。
+  string pay_no = 2;
+  // 关闭后的支付单状态，固定为 CLOSED。
+  string status = 3;
+  // 首次关闭时间，ISO 8601 格式，幂等重复调用时保持不变。
+  string closed_at = 4;
 }
 
 message CreatePaymentRequest {

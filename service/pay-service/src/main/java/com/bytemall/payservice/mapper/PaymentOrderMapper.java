@@ -29,6 +29,17 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrder> {
             """)
     PaymentOrder selectByPayNoForUpdate(@Param("payNo") String payNo);
 
+    @Select("""
+            SELECT id, pay_no, order_no, user_id, channel, amount, status,
+                   channel_trade_no, expire_at, paid_at, version, created_at, updated_at
+            FROM payment_order
+            WHERE order_no = #{orderNo}
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            FOR UPDATE
+            """)
+    PaymentOrder selectLatestByOrderNoForUpdate(@Param("orderNo") String orderNo);
+
     @Update("""
             UPDATE payment_order
             SET status = 'SUCCESS',
@@ -45,9 +56,11 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrder> {
     @Update("""
             UPDATE payment_order
             SET status = 'CLOSED',
+                updated_at = #{closedAt},
                 version = version + 1
             WHERE pay_no = #{payNo}
               AND status = 'PENDING'
             """)
-    int closePendingPayment(@Param("payNo") String payNo);
+    int closePendingPayment(@Param("payNo") String payNo,
+                            @Param("closedAt") LocalDateTime closedAt);
 }

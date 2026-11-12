@@ -303,7 +303,7 @@
 
 创建支付时如果已有同订单有效支付单，返回现有单；若旧单已失效可创建新单。支付渠道超时保持 `PENDING`，先查单，禁止立即创建另一笔可能造成重复扣款的支付。
 
-关闭支付单统一使用 gRPC `PaymentService.CloseOrder`，不再提供 `/payments/{payNo}/close` REST 接口；调用必须携带 `pay_no` 和 `idempotency-key`，不能将成功支付单改为关闭。
+关闭支付单统一使用 gRPC `PaymentService.CloseOrder`，不再提供 `/payments/{payNo}/close` REST 接口；调用必须携带 `order_no`、`reason` 和元数据 `idempotency-key`，由支付服务定位并关闭该订单当前的待支付支付单，不能将成功支付单改为关闭。
 
 ### 9.2 支付回调
 

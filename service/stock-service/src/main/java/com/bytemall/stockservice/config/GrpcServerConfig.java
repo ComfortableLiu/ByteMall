@@ -1,6 +1,6 @@
 package com.bytemall.stockservice.config;
 
-import com.bytemall.stockservice.internal.StockGrpcService;
+import com.bytemall.stockservice.grpc.StockGrpcService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import org.springframework.beans.factory.annotation.Value;
