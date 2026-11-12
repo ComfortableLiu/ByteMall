@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 //告诉它 ProductSpu 这个 Java 实体类对应数据库里的 product_spu 表
 @Data
 @TableName("product_spu")
@@ -21,4 +23,6 @@ public class ProductSpu {
     private String status;
     private Long version;
     private String descriptionHtml;
+    private Long salesCount;
+    private LocalDateTime publishedAt;
 }
