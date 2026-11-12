@@ -29,6 +29,9 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrder> {
             """)
     PaymentOrder selectByPayNoForUpdate(@Param("payNo") String payNo);
 
+    /**
+     * 查询订单最新的支付单并加行锁，调用方必须开启事务。
+     */
     @Select("""
             SELECT id, pay_no, order_no, user_id, channel, amount, status,
                    channel_trade_no, expire_at, paid_at, version, created_at, updated_at

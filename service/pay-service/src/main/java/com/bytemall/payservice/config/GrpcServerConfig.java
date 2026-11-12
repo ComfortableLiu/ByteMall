@@ -1,6 +1,6 @@
 package com.bytemall.payservice.config;
 
-import com.bytemall.payservice.payments.PaymentGrpcService;
+import com.bytemall.payservice.grpc.PaymentGrpcService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import org.springframework.beans.factory.annotation.Value;

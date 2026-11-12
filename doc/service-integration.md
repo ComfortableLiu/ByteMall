@@ -245,7 +245,7 @@ message CloseOrderResponse {
 
 ### 4.2 PaymentService
 
-#### 4.2.1 `CreatePayment`（规划）
+#### 4.2.1 `CreatePayment`（本地模拟流程已实现，订单上下文与真实渠道待接入）
 
 调用方：结算服务或 `pay-service` 的公开接口适配层。用途：为待支付订单创建支付单并返回收银台参数。
 
@@ -265,6 +265,8 @@ message CloseOrderResponse {
 | 出参 | `created_at` | string | 是 | 创建时间 |
 
 处理逻辑：校验幂等键和请求指纹 → 调用 `OrderService.GetPaymentContext` → 校验订单归属、状态和金额 → 复用同订单有效支付单 → 本地事务创建 `PENDING` 支付单 → 调用对应渠道适配器下单 → 返回 `pay_no` 和收银台参数。客户端不能传入金额，渠道超时不能立即判失败或重复扣款。
+
+当前实现支持参数校验、复用同渠道的 `PENDING` 支付单、拒绝已支付订单重复创建，以及不同渠道有效支付单的冲突提示。`OrderService.GetPaymentContext`、`idempotency-key` 请求指纹持久化和真实渠道下单尚未接入；买家 ID、金额及渠道令牌仍沿用本地占位逻辑，不能作为生产支付依据。
 
 #### 4.2.2 `GetPayment`（规划）
 

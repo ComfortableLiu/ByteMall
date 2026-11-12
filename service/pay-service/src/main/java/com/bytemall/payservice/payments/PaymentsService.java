@@ -65,24 +65,13 @@ public class PaymentsService {
                 paymentOrder.getStatus(),
                 paymentOrder.getChannelTradeNo(),
                 paymentOrder.getExpireAt().toInstant(ZoneOffset.UTC),
-                paymentOrder.getPaidAt().toInstant(ZoneOffset.UTC),
+                toInstant(paymentOrder.getPaidAt()),
                 paymentOrder.getCreatedAt().toInstant(ZoneOffset.UTC)
         );
     }
 
     public PaymentResponses.Payment get(String payNo) {
         log.info("Getting payment {}", payNo);
-        return response(payNo);
-    }
-
-    public PaymentResponses.Payment close(String payNo) {
-        log.info("Closing payment {}", payNo);
-        PaymentOrder paymentOrder = new PaymentOrder();
-        paymentOrder.setPayNo(payNo);
-        paymentOrder.setStatus(PaymentStatus.CLOSED);
-        paymentOrder.setUpdatedAt(LocalDateTime.now());
-        paymentOrder.setVersion(paymentOrderMapper.selectByPayNoForUpdate(payNo).getVersion());
-        paymentOrderMapper.update(paymentOrder, new UpdateWrapper<PaymentOrder>().set("pay_no", payNo));
         return response(payNo);
     }
 
@@ -108,8 +97,13 @@ public class PaymentsService {
                 paymentOrder.getStatus(),
                 paymentOrder.getChannelTradeNo(),
                 paymentOrder.getExpireAt().toInstant(ZoneOffset.UTC),
-                paymentOrder.getPaidAt().toInstant(ZoneOffset.UTC),
+                toInstant(paymentOrder.getPaidAt()),
                 paymentOrder.getCreatedAt().toInstant(ZoneOffset.UTC)
         );
+    }
+
+    /** 未支付时 paidAt 为 null，响应中保留空值而不是执行时间转换。 */
+    private static Instant toInstant(LocalDateTime value) {
+        return value == null ? null : value.toInstant(ZoneOffset.UTC);
     }
 }
