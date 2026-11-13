@@ -1,14 +1,12 @@
 package com.bytemall.productservice.merchant;
 
 import com.bytemall.common.model.dto.ApiResponse;
+import com.bytemall.productservice.products.ProductResponses;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/merchant/products")
@@ -19,7 +17,7 @@ public class MerchantProductController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<ProductResponses.CreatedProduct> createDraft(
+    public ApiResponse<MerchantProductResponses.CreatedProduct> createDraft(
             @Valid @RequestBody CreateProductRequest request
 //            Authentication authentication
     ) {
@@ -40,9 +38,19 @@ public class MerchantProductController {
 //        return ApiResponse.ok(new ProductResponses.CreatedProduct(spuId.toString()));
 //        测试先写死1L
         Long spuId = merchantProductService.createDraft(1L, request);
-        return ApiResponse.ok(new ProductResponses.CreatedProduct(spuId.toString()));
+        return ApiResponse.ok(new MerchantProductResponses.CreatedProduct(spuId.toString()));
     }
 
     public record MerchantPrincipal(Long merchantId) {
     }
+
+    @GetMapping
+    public ApiResponse<ProductResponses.ProductPage> listMerchantProducts(
+            @RequestParam(name = "page",defaultValue = "1") @Min(1) int page,
+            @RequestParam(name = "size",defaultValue = "1") @Min(1) int size,
+            @RequestParam(name = "status", required = false) String status
+            ){
+        return ApiResponse.ok(merchantProductService.getMerchantProductList(1L,page,size,status));
+    }
+
 }

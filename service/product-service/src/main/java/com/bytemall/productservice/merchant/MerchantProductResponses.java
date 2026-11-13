@@ -1,8 +1,8 @@
 package com.bytemall.productservice.merchant;
 
-public final class ProductResponses {
+public final class MerchantProductResponses {
 
-    private ProductResponses() {
+    private MerchantProductResponses() {
     }
 
     public record CreatedProduct(String spuId) {
