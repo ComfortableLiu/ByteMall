@@ -1,4 +1,4 @@
-package com.bytemail.userservice.auth;
+package com.bytemail.userservice.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
