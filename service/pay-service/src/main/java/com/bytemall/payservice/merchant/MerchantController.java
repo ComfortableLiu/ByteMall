@@ -17,6 +17,7 @@ public class MerchantController {
 
     private final MerchantService merchantService;
 
+    /** 按账单日期查询对账差异，日期格式为 yyyy-MM-dd。 */
     @GetMapping("/reconciliations")
     public ApiResponse<List<MerchantResponses.Reconciliations>> reconciliations(
             @RequestParam LocalDate bizDate

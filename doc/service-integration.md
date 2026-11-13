@@ -181,7 +181,7 @@ message CloseOrderResponse {
 2. `GET /internal/mock-payments/query?orderNo={orderNo}&amount={amount}&status={result}`，模拟主动查单。
 3. 页面按结果展示成功或失败。
 
-这些接口仅用于演示，不查询真实渠道。回调骨架只记录并返回 `success`，不代表支付单、订单或库存已经更新。
+这些接口仅用于演示，不查询真实渠道。当前 MOCK 回调已实现固定签名校验、`notifyId` 去重、金额与渠道核对、支付状态更新和回调流水；真实渠道验签以及 `PaymentSucceeded` Outbox/Kafka 仍为 TODO，因此当前回调不会自动推进订单和库存。
 
 ## 4. 全部内部 gRPC 契约清单
 
