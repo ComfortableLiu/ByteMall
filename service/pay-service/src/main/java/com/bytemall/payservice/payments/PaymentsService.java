@@ -102,7 +102,9 @@ public class PaymentsService {
         );
     }
 
-    /** 未支付时 paidAt 为 null，响应中保留空值而不是执行时间转换。 */
+    /**
+     * 未支付时 paidAt 为 null，响应中保留空值而不是执行时间转换。
+     */
     private static Instant toInstant(LocalDateTime value) {
         return value == null ? null : value.toInstant(ZoneOffset.UTC);
     }

@@ -1,12 +1,10 @@
-package com.bytemail.userservice.auth;
+package com.bytemall.common.auth;
 
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import lombok.RequiredArgsConstructor;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -18,13 +16,15 @@ import java.security.KeyPair;
 /**
  * 解析带@CurrentUserId注解的方法参数，从Bearer JWT中读取用户ID。
  */
-@Component
-@RequiredArgsConstructor
 public class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final KeyPair jwtKeyPair;
+
+    public CurrentUserIdArgumentResolver(KeyPair jwtKeyPair) {
+        this.jwtKeyPair = jwtKeyPair;
+    }
 
     /**
      * 仅处理带注解的Long或long参数，其他参数继续交给Spring默认解析器。
@@ -37,7 +37,7 @@ public class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResol
     }
 
     /**
-     * 使用RSA公钥验证JWT签名和有效期，再将sub声明转换为用户ID。
+     * 未携带Token时返回-1；携带Token后验证签名和有效期，再将sub转换为用户ID。
      */
     @Override
     public Object resolveArgument(
@@ -47,14 +47,17 @@ public class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResol
             WebDataBinderFactory binderFactory
     ) {
         String authorization = webRequest.getHeader(HttpHeaders.AUTHORIZATION);
-        if (authorization == null
-                || !authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
-            throw unauthorized("缺少Bearer访问令牌", null);
+        // 未登录游客没有Token，统一注入-1，不影响公开接口访问。
+        if (authorization == null || authorization.isBlank()) {
+            return -1L;
+        }
+        if (!authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+            throw unauthorized("Authorization请求头必须使用Bearer格式", null);
         }
 
         String token = authorization.substring(BEARER_PREFIX.length()).trim();
         if (token.isEmpty()) {
-            throw unauthorized("访问令牌不能为空", null);
+            return -1L;
         }
 
         try {

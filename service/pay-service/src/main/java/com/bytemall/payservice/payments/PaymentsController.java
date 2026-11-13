@@ -1,5 +1,6 @@
 package com.bytemall.payservice.payments;
 
+import com.bytemall.common.auth.CurrentUserId;
 import com.bytemall.common.model.dto.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,8 @@ public class PaymentsController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<PaymentResponses.Payment> create(
             @Valid @RequestBody PaymentRequests.CreatePayment request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @CurrentUserId Long userId
     ) {
         return ApiResponse.ok(paymentsService.create(request, idempotencyKey));
     }
