@@ -6,7 +6,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/v1/merchant/products")
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class MerchantProductController {
 
     private final MerchantProductService merchantProductService;
+    private final MerchantProductImageUploadService merchantProductImageUploadService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -52,5 +55,14 @@ public class MerchantProductController {
             ){
         return ApiResponse.ok(merchantProductService.getMerchantProductList(1L,page,size,status));
     }
+
+    @PostMapping(path="/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)//这条接口接收 Content-Type: multipart/form-data 的请求。
+    @ResponseStatus(HttpStatus.CREATED)//告诉 Spring，这个 Controller 方法正常返回时，把 HTTP 状态码设为 201 Created
+    public ApiResponse<MerchantProductResponses.ImageUploadResult> uploadImageToOSS(
+            @RequestParam("file") MultipartFile file
+    ){
+        return ApiResponse.ok(merchantProductImageUploadService.UploadImage(file));
+    }
+
 
 }
