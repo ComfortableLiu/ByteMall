@@ -15,10 +15,6 @@ service PaymentService {
 
   // 关闭支付单
   rpc CloseOrder (CloseOrderRequest) returns (CloseOrderResponse);
-
-  // 启动异步支付对账。
-  // 校验渠道和账期 → 创建唯一任务 ID → 在同一事务中写入 Outbox ReconciliationRequested → 立即返回任务 ID → 后台任务拉取渠道账单并按交易号核对 → 差异写入 reconciliation_record → 可自动修复的按明确规则处理，其余告警并人工复核。不能用同步 RPC 等待整份账单处理完成。
-  rpc StartReconciliationJob (StartReconciliationJobRequest) returns (StartReconciliationJobResponse);
 }
 
 message CloseOrderRequest {
@@ -93,23 +89,4 @@ message GetPaymentResponse{
   string paidAt = 9;
   // 创建时间
   string createdAt = 10;
-}
-
-message StartReconciliationJobRequest {
-  // 渠道
-  string channel = 1;
-  // 渠道账单业务日期，不能晚于当天
-  string bizDate = 2;
-}
-message StartReconciliationJobResponse {
-  // 对账任务 ID
-  string jobId = 1;
-  // 对账渠道
-  string channel = 2;
-  // 对账业务日期
-  string bizDate = 3;
-  // 接受后使用 QUEUED 或 ACCEPTED
-  string status = 4;
-  // 任务创建时间
-  string createdAt = 5;
 }

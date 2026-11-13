@@ -43,11 +43,13 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrder> {
             """)
     PaymentOrder selectLatestByOrderNoForUpdate(@Param("orderNo") String orderNo);
 
+    /** 仅允许待支付单支付成功，避免重复回调或关单后的状态覆盖。 */
     @Update("""
             UPDATE payment_order
             SET status = 'SUCCESS',
                 channel_trade_no = #{channelTradeNo},
                 paid_at = #{paidAt},
+                updated_at = #{paidAt},
                 version = version + 1
             WHERE pay_no = #{payNo}
               AND status = 'PENDING'
@@ -55,6 +57,18 @@ public interface PaymentOrderMapper extends BaseMapper<PaymentOrder> {
     int markPaymentSucceeded(@Param("payNo") String payNo,
                              @Param("channelTradeNo") String channelTradeNo,
                              @Param("paidAt") LocalDateTime paidAt);
+
+    /** 记录渠道支付失败结果，已成功或已关闭的支付单不允许改为失败。 */
+    @Update("""
+            UPDATE payment_order
+            SET status = 'FAILED',
+                updated_at = #{failedAt},
+                version = version + 1
+            WHERE pay_no = #{payNo}
+              AND status = 'PENDING'
+            """)
+    int markPaymentFailed(@Param("payNo") String payNo,
+                          @Param("failedAt") LocalDateTime failedAt);
 
     @Update("""
             UPDATE payment_order

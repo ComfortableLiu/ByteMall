@@ -323,7 +323,7 @@
 
 查询参数：`orderNo` 必填，`amount` 可选（默认 0，单位分），`status` 可选（默认 `SUCCESS`，仅允许 `SUCCESS` 或 `FAILED`）。返回字段为 `notifyId`、`orderNo`、`amount`、`status`、`signature`。其中 `notifyId` 为 `MOCK-NOTIFY-{orderNo}`，`signature` 固定为 `mock-signature`。
 
-沙箱页面先调用 `POST /internal/payment-callbacks/MOCK`，再调用该查单接口。回调骨架当前只记录通知并返回 `success`，不代表真实支付单、订单或库存已经更新。模拟查单结果仅用于演示主动查询流程，不能作为真实支付状态依据。
+沙箱页面先调用 `POST /internal/payment-callbacks/MOCK`，再调用该查单接口。当前 MOCK 回调已实现固定签名校验、`notifyId` 去重、金额与渠道核对、支付状态更新和回调流水；真实渠道验签以及 `PaymentSucceeded` Outbox/Kafka 尚未接入，因此当前回调不会自动推进订单和库存。模拟查单结果仅用于演示主动查询流程，不能作为真实支付状态依据。
 
 ### 9.4 对账
 
@@ -333,6 +333,8 @@
 | gRPC `PaymentService.StartReconciliationJob` | 调度服务身份 | 返回任务 ID | `{channel,bizDate}` 启动异步对账，不使用 `/internal/payments/reconciliation-jobs` REST 路径 |
 
 对账任务拉取渠道账单，与本地支付/退款按交易号核对。差异进入 `reconciliation_record`，自动修复只能执行明确且幂等的规则，其他情况人工复核。
+
+当前商家查询接口已按 `bizDate` 返回非 `MATCHED` 记录；金额为分，记录缺失的一侧金额为空。商家认证和订单商家归属尚未接入，当前实现还未按 `merchantId` 做数据隔离，不能直接作为生产商家接口开放。
 
 ## 10. 幂等、并发与重试
 
