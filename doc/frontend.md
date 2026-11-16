@@ -27,6 +27,8 @@
 
 搜索参数写入 URL：`q`、`category`、`brand`、`minPrice`、`maxPrice`、`sort`、`page`。价格为界面元值，进入服务层时转换为分。
 
+搜索页关键词输入框使用原生 `input list + datalist` 展示商品标题联想，停止输入 300ms 后调用 `/search/suggestions`，忽略过期响应，选择或回车仍通过原 GET 表单提交。
+
 ### 2.2 商家后台
 
 | 路由 | 页面 | 核心内容/操作 |
@@ -78,7 +80,9 @@ App
 - `createPayment(orderNo, channel, idempotencyKey)`：创建/复用支付单。
 - 商家商品、库存、发货操作复用同一状态，不使用另一份静态数据。
 
-`npm run dev:mock` 通过 Rspack `--env BYTE_MALL_USE_MOCK=true` 使用本地 mock；`npm run dev` 默认使用线上适配器。线上模式必须设置 `BYTE_MALL_API_BASE_URL`，值包含 `/api/v1`，例如 `BYTE_MALL_API_BASE_URL=https://api.example.com/api/v1 npm run dev`。Rspack 通过 DefinePlugin 注入公开地址与数据源标志；未配置地址时会显示明确错误。浏览器不得保存生产支付密钥或内部服务令牌。
+`npm run dev:mock` 通过 Rspack `--env BYTE_MALL_USE_MOCK=true` 使用本地 mock；`npm run dev` 默认使用线上适配器，入口为 `http://127.0.0.1:3000/api/v1`。可通过 `BYTE_MALL_API_BASE_URL` 覆盖为其他网关或单服务调试地址，值必须包含 `/api/v1`。Rspack 通过 DefinePlugin 注入公开地址与数据源标志；浏览器不得保存生产支付密钥或内部服务令牌。
+
+通过 3000 网关访问时，由 Spring Cloud Gateway 的 `globalcors` 处理 `/api/**` 预检请求，并对下游重复的 CORS 响应头去重；直连服务时由 `byte-mall-common` 处理。默认允许 `localhost/127.0.0.1` 的 5173 和 4173 端口。自定义来源使用逗号分隔的 `BYTE_MALL_CORS_ALLOWED_ORIGINS`，例如 `BYTE_MALL_CORS_ALLOWED_ORIGINS=http://localhost:5173,https://shop.example.com`。请求允许携带凭据，因此不能配置为 `*`。只希望网关处理跨域时，下游服务设置 `BYTE_MALL_CORS_ENABLED=false`。
 
 ### 4.2 mock 状态
 

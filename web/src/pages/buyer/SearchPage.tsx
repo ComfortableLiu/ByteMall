@@ -8,6 +8,58 @@ import { getErrorMessage } from '../../services/index.ts'
 import { useAppStore } from '../../store/app-store.tsx'
 import type { ProductSort, SearchResult } from '../../types/domain.ts'
 
+interface SearchKeywordFieldProps {
+  initialValue: string
+  searchSuggestions: (q: string) => Promise<string[]>
+}
+
+function SearchKeywordField({ initialValue, searchSuggestions }: SearchKeywordFieldProps) {
+  const [keyword, setKeyword] = useState(initialValue)
+  const [completed, setCompleted] = useState<{ key: string; items: string[] } | null>(null)
+  const value = keyword.trim()
+
+  useEffect(() => {
+    if (!value) return
+
+    let active = true
+    // 输入停止300ms后再请求，active标志阻止旧响应覆盖新关键词的建议。
+    const timer = window.setTimeout(() => {
+      searchSuggestions(value)
+        .then((items) => { if (active) setCompleted({ key: value, items: [...new Set(items)] }) })
+        .catch(() => { if (active) setCompleted({ key: value, items: [] }) })
+    }, 300)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [searchSuggestions, value])
+
+  const suggestions = completed?.key === value ? completed.items : []
+
+  return (
+    <div className="field search-keyword">
+      <label htmlFor="search-keyword">关键词</label>
+      <small id="search-keyword-hint">输入关键词后会显示相关商品标题，可直接选择。</small>
+      <input
+        id="search-keyword"
+        name="q"
+        type="search"
+        value={keyword}
+        onChange={(event) => setKeyword(event.target.value)}
+        list="search-suggestions"
+        aria-describedby="search-keyword-hint"
+        placeholder="例如：耳机、居家、声境"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      <datalist id="search-suggestions">
+        {suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
+      </datalist>
+    </div>
+  )
+}
+
 export default function SearchPage() {
   const { actions } = useAppStore()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -31,6 +83,7 @@ export default function SearchPage() {
     }).then((data) => { if (active) setCompleted({ key: requestKey, result: data }) }).catch((reason) => { if (active) setCompleted({ key: requestKey, error: reason }) })
     return () => { active = false }
   }, [actions, queryString, requestKey])
+
   const loading = completed?.key !== requestKey
   const result = completed?.key === requestKey ? completed.result ?? null : null
   const error = completed?.key === requestKey ? completed.error ?? null : null
@@ -62,7 +115,11 @@ export default function SearchPage() {
       <header className="page-heading"><span className="eyebrow">DISCOVER BYTEMALL</span><h1>找到适合你的那一件</h1><p>按品类、品牌和预算筛选，少一点打扰，多一点确定。</p></header>
       <search className="search-panel">
         <form key={queryString} action="/search" method="GET" onSubmit={(event) => { event.preventDefault(); applyFilters(event.currentTarget) }}>
-          <div className="field search-keyword"><label htmlFor="search-keyword">关键词</label><input id="search-keyword" name="q" type="search" defaultValue={searchParams.get('q') ?? ''} placeholder="例如：耳机、居家、声境" autoComplete="off" spellCheck={false} /></div>
+          <SearchKeywordField
+            key={queryString}
+            initialValue={searchParams.get('q') ?? ''}
+            searchSuggestions={actions.searchSuggestions}
+          />
           <div className="filter-layout">
             <fieldset><legend>商品分类</legend><div className="filter-options"><label><input type="radio" name="category" value="" defaultChecked={!searchParams.get('category')} />全部</label>{(result?.aggregations.categories ?? []).map((item) => <label key={item.value}><input type="radio" name="category" value={item.value} defaultChecked={searchParams.get('category') === item.value} />{item.label} <span>{item.count}</span></label>)}</div></fieldset>
             <fieldset><legend>品牌</legend><div className="filter-options"><label><input type="radio" name="brand" value="" defaultChecked={!searchParams.get('brand')} />全部</label>{(result?.aggregations.brands ?? []).map((item) => <label key={item.value}><input type="radio" name="brand" value={item.value} defaultChecked={searchParams.get('brand') === item.value} />{item.label} <span>{item.count}</span></label>)}</div></fieldset>

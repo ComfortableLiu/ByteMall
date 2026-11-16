@@ -62,7 +62,8 @@ export default (env = {}) => {
         patterns: [{ from: 'public', to: '.' }],
       }),
       new rspack.DefinePlugin({
-        __BYTE_MALL_API_BASE_URL__: JSON.stringify(process.env.BYTE_MALL_API_BASE_URL),
+        // 默认走统一网关；环境变量仍可覆盖为其他网关或单服务调试地址。
+        __BYTE_MALL_API_BASE_URL__: JSON.stringify(process.env.BYTE_MALL_API_BASE_URL ?? "http://127.0.0.1:3000/api/v1"),
         __BYTE_MALL_USE_MOCK__: JSON.stringify(useMock),
       }),
       ...(isDev

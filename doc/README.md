@@ -47,6 +47,25 @@ ByteMall 是一个多商家电商系统。本目录是产品、前端和后端�
 
 状态迁移规则见[系统架构设计](./architecture.md)。页面文案可以中文化，但接口和存储只能使用上述稳定枚举。
 
+## 后端一键启动
+
+需要 JDK 17+、Maven 和 `curl`。停止占用 3000–3007 端口的旧进程后执行：
+
+```bash
+cd service
+./start-all.sh
+```
+
+脚本会先执行 `mvn -DskipTests package`，再依次启动 cart、order、pay、product、search、stock、user，等待各服务 HTTP 就绪后最后启动 gateway。统一入口为 `http://127.0.0.1:3000/api/v1`，日志写入 `service/target/dev-logs/`。终端保持运行，按 `Ctrl+C` 只停止本次脚本启动的进程。
+
+脚本会依次查找 Maven Wrapper、系统 Maven 和当前机器 IntelliJ IDEA 自带 Maven。也可通过 `MVN_CMD` 显式指定可执行文件，启动超时默认 90 秒，可通过 `STARTUP_TIMEOUT` 调整：
+
+```bash
+MVN_CMD=/path/to/mvn STARTUP_TIMEOUT=120 ./start-all.sh
+```
+
+`cart-service` 和 `order-service` 当前提供最小启动入口及 3001/3002 端口配置，业务接口仍需单独实现。
+
 ## 前端运行
 
 ```bash
@@ -55,11 +74,21 @@ npm install
 npm run dev:mock
 ```
 
-普通 `npm run dev` 使用线上 API，需要提供包含 `/api/v1` 的网关地址：
+普通 `npm run dev` 默认使用 `http://127.0.0.1:3000/api/v1`，启动 `gateway-service` 后即可通过统一入口访问各服务。需要覆盖地址时：
 
 ```bash
 BYTE_MALL_API_BASE_URL=https://api.example.com/api/v1 npm run dev
 ```
+
+本地端口依次为：网关 3000、购物车 3001、订单 3002、支付 3003、商品 3004、搜索 3005、库存 3006、用户 3007。完整路由及环境变量见[系统架构设计](./architecture.md#21-当前统一入口与端口)。
+
+通过 3000 网关访问时，由网关处理 `/api/**` 的 CORS 预检并自动去重响应头；直连下游服务时，由各服务的 common 配置处理。需要自定义来源时，在网关或服务启动环境中设置：
+
+```bash
+export BYTE_MALL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+生产环境由网关统一处理跨域时，下游服务设置 `BYTE_MALL_CORS_ENABLED=false`。
 
 交付检查：
 

@@ -1,0 +1,16 @@
+server:
+  # 与网关路由表保持一致。
+  port: ${CART_PORT:3001}
+
+spring:
+  application:
+    name: cart-service
+
+  data:
+    redis:
+      host: ${REDIS_HOST:123.56.201.124}
+      port: ${REDIS_PORT:9400}
+      password: ${REDIS_PASSWORD:gyri4wDyHlRY0aJK}
+      database: ${REDIS_DB:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:10000}
+      timeout: ${REDIS_COMMAND_TIMEOUT:5000}

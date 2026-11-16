@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/user")
+@RequestMapping("/v1/user")
 public class UserController {
     private final UserService userService;
 

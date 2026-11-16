@@ -247,8 +247,8 @@ export class RemoteAdapter {
   }
 
   async searchSuggestions(q: string): Promise<string[]> {
-    const result = await this.request<Array<{ text: string }>>('/search/suggestions', { query: { q } })
-    return result.map((item) => item.text)
+    // 后端直接返回字符串数组，不再读取不存在的item.text字段。
+    return this.request<string[]>('/search/suggestions', { query: { q } })
   }
 
   async getCart(): Promise<Cart> {

@@ -6,6 +6,7 @@ import co.elastic.clients.elasticsearch._types.aggregations.Aggregate;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import com.bytemall.searchservice.product.ProductIndexDocument;
 import com.bytemall.searchservice.product.ProductIndexService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -131,9 +132,9 @@ public class SearchService {
     }
 
     public List<String> suggestions(String q) throws IOException {
-        // 打日志
         log.info("Searching suggestions for {}", q);
-        SearchResponse<String> response = elasticsearchClient.search(request -> {
+        // 即使_source只包含title，它仍是JSON对象，不能直接按String反序列化。
+        SearchResponse<ProductIndexDocument> response = elasticsearchClient.search(request -> {
             request.index(ProductIndexService.ALIAS)
                     .size(10)
                     .source(s -> s.filter(f -> f.includes(List.of("title"))))
@@ -145,7 +146,12 @@ public class SearchService {
                         return b;
                     }));
             return request;
-        }, String.class);
-        return response.hits().hits().stream().map(Hit::source).toList();
+        }, ProductIndexDocument.class);
+        return response.hits().hits().stream()
+                .map(Hit::source)
+                .filter(source -> source != null && source.title() != null && !source.title().isBlank())
+                .map(ProductIndexDocument::title)
+                .distinct()
+                .toList();
     }
 }

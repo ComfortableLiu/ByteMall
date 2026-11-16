@@ -1,5 +1,7 @@
 package com.bytemail.userservice.auth;
 
+import java.util.List;
+
 public record AuthResponse(
         String accessToken,
         String refreshToken,
@@ -7,12 +9,13 @@ public record AuthResponse(
         String tokenType,
         User user
 ) {
+    /** 与前端User领域模型保持一致，merchantId为空表示没有有效商家身份。 */
     public record User(
-            long userId,
+            String userId,
             String nickname,
             String avatarUrl,
-            String roles,
-            long merchantId
+            List<String> roles,
+            String merchantId
     ) {
     }
 }

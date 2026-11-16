@@ -63,6 +63,23 @@ flowchart TB
 
 商家网关是可选的网络隔离层，不另建业务权限体系。即使经过商家网关，`user-service` 鉴权与各业务服务的数据范围校验仍不可省略。
 
+### 2.1 当前统一入口与端口
+
+`gateway-service` 使用 Spring Cloud Gateway，默认监听 `3000`，按 `/api/v1/**` 的具体路径转发，原始路径和认证请求头保持不变。
+
+| 服务 | 默认地址 | 地址覆盖环境变量 |
+| --- | --- | --- |
+| gateway-service | `http://127.0.0.1:3000` | `GATEWAY_PORT` |
+| cart-service | `http://127.0.0.1:3001` | `CART_SERVICE_URL` |
+| order-service | `http://127.0.0.1:3002` | `ORDER_SERVICE_URL` |
+| pay-service | `http://127.0.0.1:3003` | `PAY_SERVICE_URL` |
+| product-service | `http://127.0.0.1:3004` | `PRODUCT_SERVICE_URL` |
+| search-service | `http://127.0.0.1:3005` | `SEARCH_SERVICE_URL` |
+| stock-service | `http://127.0.0.1:3006` | `STOCK_SERVICE_URL` |
+| user-service | `http://127.0.0.1:3007` | `USER_SERVICE_URL` |
+
+当前网关负责路由、转发和 `/api/**` 的 CORS 预检处理，尚未实现统一鉴权与限流。允许来源由 `BYTE_MALL_CORS_ALLOWED_ORIGINS` 配置，网关对下游重复的 CORS 响应头去重。只希望在网关处理跨域时，下游服务可设置 `BYTE_MALL_CORS_ENABLED=false`。gRPC 端口不经过该 REST 网关。
+
 ## 3. 服务职责与数据归属
 
 | 服务 | 核心职责 | 权威数据 | 不应承担 |

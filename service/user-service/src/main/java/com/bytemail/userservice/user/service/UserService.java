@@ -28,7 +28,8 @@ public class UserService {
     public UserAccount createUser (
             RegisterRequest request
     ) {
-        log.info(request.toString());
+        // 只记录手机号，不能把包含明文密码的请求对象输出到日志。
+        log.info("Registering user with mobile {}", request.getMobile());
         // 1. 获取手机号，去掉两端空格
         String mobile = request.getMobile().trim();
 
