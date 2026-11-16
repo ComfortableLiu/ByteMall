@@ -50,9 +50,9 @@ public class SearchService {
         if (brand != null && !brand.isBlank()) {
             filters.add(Query.of(q -> q.term(t -> t.field("brand").value(brand))));
         }
-        // 价格区间筛选：商品的 [minPrice, maxPrice] 和用户给的区间有交集就命中
+        // 价格筛选统一以商品展示的最低售价为基准，避免多SKU区间交集造成误命中。
         if (minPrice != null) {
-            filters.add(Query.of(q -> q.range(r -> r.number(n -> n.field("maxPrice").gte(minPrice.doubleValue())))));
+            filters.add(Query.of(q -> q.range(r -> r.number(n -> n.field("minPrice").gte(minPrice.doubleValue())))));
         }
         if (maxPrice != null) {
             filters.add(Query.of(q -> q.range(r -> r.number(n -> n.field("minPrice").lte(maxPrice.doubleValue())))));

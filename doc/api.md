@@ -171,7 +171,7 @@
 | `q` | string | 可空；空关键词表示筛选浏览 |
 | `category` | string | 分类 ID |
 | `brand` | string | 品牌精确筛选 |
-| `minPrice` / `maxPrice` | integer，分 | 非负，且 `minPrice <= maxPrice` |
+| `minPrice` / `maxPrice` | integer，分 | 非负，且 `minPrice <= maxPrice`；以商品展示的最低售价为筛选基准 |
 | `sort` | 枚举 | 默认 `RECOMMENDED` |
 | `page` / `size` | integer | 通用分页 |
 
