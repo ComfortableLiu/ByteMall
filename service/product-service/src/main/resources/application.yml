@@ -10,6 +10,10 @@ aliyun:
     key-prefix: ${ALIYUN_OSS_KEY_PREFIX:products/}
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   application:
     name: product-service
 

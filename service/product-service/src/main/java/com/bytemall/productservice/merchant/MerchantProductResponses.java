@@ -7,4 +7,7 @@ public final class MerchantProductResponses {
 
     public record CreatedProduct(String spuId) {
     }
+
+    public record ImageUploadResult(String url) {
+    }
 }
