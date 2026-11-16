@@ -109,7 +109,8 @@ start_service() {
         exit 1
     fi
 
-    echo "正在启动 $name（端口 $port），日志: $LOG_DIR/$name.log"
+    # 中文括号前使用花括号明确变量边界，避免Bash将括号误并入变量名。
+    echo "正在启动 ${name}（端口 ${port}），日志: $LOG_DIR/$name.log"
     "$JAVA_CMD" -jar "$jar" >"$LOG_DIR/$name.log" 2>&1 &
     LAST_PID=$!
     PIDS+=("$LAST_PID")
