@@ -22,6 +22,10 @@ public class ProductSecurityConfig {
                                 HttpMethod.POST,
                                 "/api/v1/**"
                         ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/**"
+                        ).permitAll()
 
                         // 其他接口必须登录
                         .anyRequest().authenticated()

@@ -225,5 +225,102 @@ public class MerchantProductService {
                     }
                 });
     }
+
+    @Transactional
+    public Optional<ProductResponses.ProductDetail> updateProduct(Long merchantId, Long spuId, UpdateProductRequest request) {
+        ProductSpu spu = productSpuMapper.selectOne(Wrappers.<ProductSpu>lambdaQuery()
+                .eq(ProductSpu::getId, spuId)
+                .eq(ProductSpu::getMerchantId, merchantId));
+        if (spu == null) {
+            return Optional.empty();
+        }
+        long categoryId = Long.parseLong(request.categoryId());
+        String descriptionHtml = org.jsoup.Jsoup.clean(
+                request.descriptionHtml(), org.jsoup.safety.Safelist.relaxed());
+
+        int changed = productSpuMapper.update(null, Wrappers.<ProductSpu>lambdaUpdate()
+                .eq(ProductSpu::getId, spuId)
+                .eq(ProductSpu::getMerchantId, merchantId)
+                .eq(ProductSpu::getVersion, request.version())
+                .set(ProductSpu::getCategoryId, categoryId)
+                .set(ProductSpu::getTitle, request.title())
+                .set(ProductSpu::getSubtitle, request.subtitle())
+                .set(ProductSpu::getBrand, request.brand())
+                .set(ProductSpu::getDescriptionHtml, descriptionHtml)
+                .setSql("version = version + 1"));
+
+        if (changed == 0) {
+            throw new StatusConflict("PRODUCT_VERSION_CONFLICT", "商品已更新，请刷新后重试");
+        }
+        Map<Long, ProductSku> existingSkus = new HashMap<>();
+        for (ProductSku sku : productSkuMapper.selectList(Wrappers.<ProductSku>lambdaQuery()
+                .eq(ProductSku::getSpuId, spuId))) {
+            existingSkus.put(sku.getId(), sku);
+        }
+
+        Set<Long> submittedIds = new HashSet<>();
+        for (UpdateProductRequest.SkuUpdate input : request.skus()) {
+            if (input.skuId() != null) {
+                long skuId = Long.parseLong(input.skuId());
+                if (!existingSkus.containsKey(skuId) || !submittedIds.add(skuId)) {
+                    throw new IllegalArgumentException("SKU ID 重复或不属于当前商品");
+                }
+            }
+        }
+
+        for (UpdateProductRequest.SkuUpdate input : request.skus()) {
+            saveUpdatedSku(spuId, input);
+        }
+
+        productImageMapper.delete(Wrappers.<ProductImage>lambdaQuery()
+                .eq(ProductImage::getSpuId, spuId));
+        for (CreateProductRequest.ImageRequest input : request.images()) {
+            ProductImage image = new ProductImage();
+            image.setSpuId(spuId);
+            image.setUrl(input.url());
+            image.setAltText(input.altText() == null ? "" : input.altText());
+            image.setSortOrder(input.sortOrder() == null ? 0 : input.sortOrder());
+            image.setPrimaryImage(Boolean.TRUE.equals(input.isPrimary()));
+            productImageMapper.insert(image);
+        }
+
+        var detail = getProductDetail(merchantId, spuId).orElseThrow(
+                () -> new StatusConflict("PRODUCT_HAS_NO_SKU", "商品缺少 SKU，无法返回商品详情"));
+        publishProductChangedAfterCommit(spuId, request.version() + 1);
+        return Optional.of(detail);
+    }
+
+    private void saveUpdatedSku(long spuId, UpdateProductRequest.SkuUpdate input) {
+        String specJson;
+        try {
+            specJson = objectMapper.writeValueAsString(new TreeMap<>(input.specs()));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法序列化 SKU 规格", e);
+        }
+        byte[] specHash = hashSpecs(specJson);
+
+        if (input.skuId() == null) {
+            ProductSku sku = new ProductSku();
+            sku.setSpuId(spuId);
+            sku.setSkuCode(input.skuCode());
+            sku.setSpecJson(specJson);
+            sku.setSpecHash(specHash);
+            sku.setPrice(input.price());
+            sku.setOriginalPrice(input.originalPrice());
+            sku.setEnabled(input.enabled());
+            productSkuMapper.insert(sku);
+            return;
+        }
+
+        productSkuMapper.update(null, Wrappers.<ProductSku>lambdaUpdate()
+                .eq(ProductSku::getId, Long.parseLong(input.skuId()))
+                .eq(ProductSku::getSpuId, spuId)
+                .set(ProductSku::getSkuCode, input.skuCode())
+                .set(ProductSku::getSpecJson, specJson)
+                .set(ProductSku::getSpecHash, specHash)
+                .set(ProductSku::getPrice, input.price())
+                .set(ProductSku::getOriginalPrice, input.originalPrice())
+                .set(ProductSku::getEnabled, input.enabled()));
+    }
 }
 
