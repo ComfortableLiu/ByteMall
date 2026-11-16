@@ -13,12 +13,20 @@ import com.bytemall.productservice.products.ProductResponses;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 
 @Service
@@ -32,6 +40,8 @@ public class MerchantProductService {
 
     private final ProductDetailReader productDetailReader;
     private final ProductListReader productListReader;
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
     //1. @Transactional 给这个方法划出事务边界。后面把 SKU 和图片写入也加进来，就可以一起提交、一起回滚。
     @Transactional
@@ -127,4 +137,93 @@ public class MerchantProductService {
         return productDetailReader.read(spu, ProductDetailReader.SkuScope.ALL);
     }
 
+    //    @Transactional 给这个方法划出事务边界。后面把 SKU 和图片写入也加进来，就可以一起提交、一起回滚。
+    @Transactional
+    public Optional<ProductResponses.ProductDetail> updateProductStatus(
+            Long merchantId, Long spuId, UpdateProductStatusRequest request
+    ) {
+        ProductSpu spu = productSpuMapper.selectOne(
+                Wrappers.<ProductSpu>lambdaQuery()
+                        .eq(ProductSpu::getId, spuId)
+                        .eq(ProductSpu::getMerchantId, merchantId));
+        if (spu == null) {
+            return Optional.empty();
+        }
+        String targetStatus = request.status().name();
+//        判断要更新的状态是否和数据库里的状态不一致，不一致才走后续更新逻辑
+        if (!targetStatus.equals(spu.getStatus())) {
+            if ("DRAFT".equals(spu.getStatus()) && "OFF_SALE".equals(targetStatus)) {
+                throw new StatusConflict("INVALID_PRODUCT_STATUS", "草稿商品需要先上架");
+            }
+
+            var update = Wrappers.<ProductSpu>lambdaUpdate()
+                    .eq(ProductSpu::getId, spuId)
+                    .eq(ProductSpu::getMerchantId, merchantId)
+                    .eq(ProductSpu::getVersion, request.version())
+                    .set(ProductSpu::getStatus, targetStatus)
+                    .setSql("version = version + 1");
+            if ("ON_SALE".equals(targetStatus) && spu.getPublishedAt() == null) {
+                update.set(ProductSpu::getPublishedAt, LocalDateTime.now(ZoneOffset.UTC));
+            }
+            if (productSpuMapper.update(null, update) == 0) {
+                throw new StatusConflict("PRODUCT_VERSION_CONFLICT", "商品已更新，请刷新后重试");
+            }
+
+            // 接入搜索同步时，在此处写入同一事务内的 ProductChanged Outbox 记录。
+
+            publishProductChangedAfterCommit(spuId, request.version() + 1);
+        }
+        // 现有详情读取器在商品没有 SKU 时返回空。抛异常可回滚本次更新。
+        return Optional.of(getProductDetail(merchantId, spuId)
+                .orElseThrow(() -> new StatusConflict(
+                        "PRODUCT_HAS_NO_SKU", "商品缺少 SKU，无法返回商品详情")));
+    }
+
+    static final class StatusConflict extends RuntimeException {
+        private final String code;
+
+        StatusConflict(String code, String message) {
+            super(message);
+            this.code = code;
+        }
+
+        String code() {
+            return code;
+        }
+    }
+
+    private void publishProductChangedAfterCommit(Long spuId, long version) {
+        String productId = spuId.toString();
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(Map.of(
+                    "eventId", UUID.randomUUID().toString(),
+                    "eventType", "ProductChanged",
+                    "aggregateType", "PRODUCT",
+                    "aggregateId", productId,
+                    "version", version,
+                    "occurredAt", Instant.now().toString()
+            ));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法序列化商品变更事件", e);
+        }
+//registerSynchronization 把回调注册到当前事务，所以要在外层 @Transactional 方法执行期间调用。
+        TransactionSynchronizationManager.registerSynchronization(
+// 创建一个匿名实现，里面定义了要在事务的哪个阶段做什么。
+//@Override 表示下面的方法覆盖了接口提供的 afterCommit()。
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        kafkaTemplate.send("product-changed", productId, payload)
+                                .whenComplete((result, error) -> {
+                                    if (error != null) {
+                                        org.slf4j.LoggerFactory.getLogger(MerchantProductService.class)
+                                                .error("商品变更事件发送失败，spuId={}，version={}",
+                                                        productId, version, error);
+                                    }
+                                });
+                    }
+                });
+    }
 }
+
