@@ -1,6 +1,14 @@
 server:
   port: 3003
 
+bytemall:
+  security:
+    # 第三方无法持有用户JWT，回调通过渠道验签保证可信；模拟查单仅在非生产环境存在。
+    public-get-paths:
+      - /api/v1/internal/mock-payments/query
+    public-post-paths:
+      - /api/v1/internal/payment-callbacks/**
+
 grpc:
   server:
     port: ${PAY_GRPC_PORT:9092}

@@ -1,5 +1,13 @@
 server:
   port: 3004
+
+bytemall:
+  security:
+    # 游客可以浏览商品和分类；商家商品的查询、创建、修改及图片上传均需登录。
+    public-get-paths:
+      - /api/v1/products/**
+      - /api/v1/categories/**
+
 aliyun:
   oss:
     endpoint: ${ALIYUN_OSS_ENDPOINT:https://oss-cn-beijing.aliyuncs.com}

@@ -68,6 +68,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <!-- 不写 version：版本由 <parent>（spring-boot-starter-parent）统一管理 -->
         </dependency>
+
+        <!-- 公共JWT资源服务器配置；业务服务可用自己的SecurityFilterChain覆盖默认规则。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
