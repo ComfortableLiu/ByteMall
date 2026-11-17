@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+
 @Service
 public class OrderService {
 
@@ -18,7 +20,7 @@ public class OrderService {
 
     public OrderResponses.OrderPage list(Long userId, OrderStatus status, int page, int size) {
         // TODO 按当前买家和状态查询订单，并按创建时间倒序分页。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "订单分页功能尚未实现");
+        return new OrderResponses.OrderPage(page, size, 0, new ArrayList<>());
     }
 
     public OrderResponses.Order get(Long userId, String orderNo) {

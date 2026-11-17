@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** 当前登录用户查询接口。 */
 @RestController
 @RequestMapping("/v1/users")
@@ -18,5 +21,10 @@ public class CurrentUserController {
     @GetMapping("/me")
     public ApiResponse<AuthResponse.User> me(@CurrentUserId Long userId) {
         return ApiResponse.ok(authService.currentUser(userId));
+    }
+
+    @GetMapping("/me/addresses")
+    public ApiResponse<List> meAddresses(@CurrentUserId Long userId) {
+        return ApiResponse.ok(new ArrayList());
     }
 }
