@@ -31,7 +31,8 @@ import static io.jsonwebtoken.Jwts.SIG.RS256;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private static final int TOKEN_EXPIRES_IN = 7 * 24 * 60 * 60;
+    // 资源服务离线验签无法即时撤销访问令牌，短有效期将注销后的撤销窗口限制在15分钟内。
+    private static final int TOKEN_EXPIRES_IN = 15 * 60;
     private static final int REFRESH_TOKEN_EXPIRES_IN = 30 * 24 * 60 * 60;
 
     private final UserAccountMapper userAccountMapper;

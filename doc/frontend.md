@@ -82,6 +82,8 @@ App
 
 `npm run dev:mock` 通过 Rspack `--env BYTE_MALL_USE_MOCK=true` 使用本地 mock；`npm run dev` 默认使用线上适配器，入口为 `http://127.0.0.1:3000/api/v1`。可通过 `BYTE_MALL_API_BASE_URL` 覆盖为其他网关或单服务调试地址，值必须包含 `/api/v1`。Rspack 通过 DefinePlugin 注入公开地址与数据源标志；浏览器不得保存生产支付密钥或内部服务令牌。
 
+远程适配器仅在错误响应 `message` 为“访问令牌无效或已过期”时清除 sessionStorage 中的访问 Token、当前用户和私有数据，并通过 `SESSION_EXPIRED_EVENT` 同步 React store 退出登录。该过程不调用注销或刷新接口，避免重复 401 循环；“请先登录”等其他 401 不会误触发过期清理。
+
 通过 3000 网关访问时，由 Spring Cloud Gateway 的 `globalcors` 处理 `/api/**` 预检请求，并对下游重复的 CORS 响应头去重；直连服务时由 `byte-mall-common` 处理。默认允许 `localhost/127.0.0.1` 的 5173 和 4173 端口。自定义来源使用逗号分隔的 `BYTE_MALL_CORS_ALLOWED_ORIGINS`，例如 `BYTE_MALL_CORS_ALLOWED_ORIGINS=http://localhost:5173,https://shop.example.com`。请求允许携带凭据，因此不能配置为 `*`。只希望网关处理跨域时，下游服务设置 `BYTE_MALL_CORS_ENABLED=false`。
 
 ### 4.2 mock 状态

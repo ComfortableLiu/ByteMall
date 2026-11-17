@@ -26,6 +26,8 @@ import type {
 import type { LoginOptions, MockPaymentCallbackInput, MockPaymentNotification } from './api.ts'
 import { DomainError } from './mock-adapter.ts'
 
+export const SESSION_EXPIRED_EVENT = 'bytemall:session-expired'
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
@@ -64,6 +66,7 @@ export class RemoteAdapter {
   readonly loadWarning = ''
   private state: AppState = emptyState()
   private accessToken = ''
+  private sessionGeneration = 0
   private readonly baseUrl?: string
 
   constructor(baseUrl?: string) {
@@ -80,6 +83,7 @@ export class RemoteAdapter {
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const requestGeneration = this.sessionGeneration
     if (!this.baseUrl) {
       throw new DomainError('API_BASE_URL_MISSING', '线上模式需要设置 BYTE_MALL_API_BASE_URL（包含 /api/v1）', 500)
     }
@@ -103,9 +107,19 @@ export class RemoteAdapter {
       })
       const contentType = response.headers.get('content-type') ?? ''
       const text = await response.text()
+      if (requestGeneration !== this.sessionGeneration) {
+        // 旧会话的迟到响应不得恢复私有状态，也不能重复触发过期事件。
+        throw new DomainError('SESSION_EXPIRED', '登录已过期，请重新登录', 401)
+      }
       const payload = text && contentType.includes('application/json') ? JSON.parse(text) : null
       if (!response.ok) {
-        throw new DomainError(payload?.code ?? 'HTTP_ERROR', payload?.message ?? (text || `线上请求失败（${response.status}）`), response.status)
+        const message = payload?.message ?? (text || `线上请求失败（${response.status}）`)
+        if (message === '访问令牌无效或已过期') {
+          // 只清理本地会话并通知 store，不能调用 logout 或刷新 Token 形成循环。
+          this.clearLocalSession()
+          globalThis.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+        }
+        throw new DomainError(payload?.code ?? 'HTTP_ERROR', message, response.status)
       }
       if (contentType.includes('application/json')) return payload?.data as T
       return text as T
@@ -169,6 +183,8 @@ export class RemoteAdapter {
     ])
     this.state.categories = categories
     this.syncProducts(products.items)
+    // 没有访问令牌就是未登录，无需请求用户信息和私有数据。
+    if (!this.accessToken) return
     try {
       const user = await this.request<User>('/users/me')
       this.state.currentUser = user
@@ -198,20 +214,26 @@ export class RemoteAdapter {
     return structuredClone(result.user)
   }
 
+  private clearLocalSession(): void {
+    // 单调递增代际，使清理前已经发出的请求在响应时被丢弃。
+    this.sessionGeneration += 1
+    this.accessToken = ''
+    try {
+      sessionStorage.removeItem('bytemall-dev-access-token')
+    } catch {
+      this.accessToken = ''
+    }
+    this.state.currentUser = null
+    this.state.cart = []
+    this.state.addresses = []
+    this.state.orders = []
+  }
+
   async logout(): Promise<void> {
     try {
       await this.request<void>('/auth/logout', { method: 'POST' })
     } finally {
-      this.accessToken = ''
-      try {
-        sessionStorage.removeItem('bytemall-dev-access-token')
-      } catch {
-        this.accessToken = ''
-      }
-      this.state.currentUser = null
-      this.state.cart = []
-      this.state.addresses = []
-      this.state.orders = []
+      this.clearLocalSession()
     }
   }
 

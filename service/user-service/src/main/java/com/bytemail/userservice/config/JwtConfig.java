@@ -21,11 +21,11 @@ import java.util.Base64;
 public class JwtConfig {
 
     // RSA私钥（PKCS#8 PEM格式，即-----BEGIN PRIVATE KEY-----），为空时生成临时密钥对（仅限本地开发）
-    @Value("${jwt.rsa.private-key:}")
+    @Value("${jwt.rsa.private-key:${JWT_RSA_PRIVATE_KEY:}}")
     private String privateKeyPem;
 
     // RSA公钥（X.509 PEM格式，即-----BEGIN PUBLIC KEY-----），用于网关或其他服务验签，可省略
-    @Value("${jwt.rsa.public-key:}")
+    @Value("${jwt.rsa.public-key:${JWT_RSA_PUBLIC_KEY:}}")
     private String publicKeyPem;
 
     @Bean

@@ -1,2 +1,3 @@
 com.bytemall.common.auth.CurrentUserIdAutoConfiguration
+com.bytemall.common.auth.JwtSecurityAutoConfiguration
 com.bytemall.common.cors.ByteMallCorsAutoConfiguration

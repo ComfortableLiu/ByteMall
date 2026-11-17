@@ -5,6 +5,7 @@ import com.bytemall.payservice.entity.PaymentTransaction;
 import com.bytemall.payservice.mapper.PaymentOrderMapper;
 import com.bytemall.payservice.mapper.PaymentTransactionMapper;
 import com.bytemall.payservice.payments.PaymentChannel;
+import com.bytemall.payservice.payments.PaymentChannelPolicy;
 import com.bytemall.payservice.payments.PaymentStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,12 +34,15 @@ public class PaymentCallbacksService {
     private final PaymentOrderMapper paymentOrderMapper;
     private final PaymentTransactionMapper paymentTransactionMapper;
     private final ObjectMapper objectMapper;
+    private final PaymentChannelPolicy paymentChannelPolicy;
 
     /**
      * 处理渠道通知。只有数据库事务提交后，Controller 才会向渠道返回 success。
      */
     @Transactional
     public String accept(PaymentChannel channel, PaymentCallbackRequests.PaymentNotification notification) {
+        // 必须在验签、报文序列化和数据库去重前拒绝生产环境的模拟回调。
+        paymentChannelPolicy.validate(channel);
         validateNotification(notification);
         verifySignature(channel, notification);
         String requestPayload = toJson(notification);

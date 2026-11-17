@@ -19,8 +19,11 @@ import java.util.UUID;
 public class PaymentsService {
 
     private final PaymentOrderMapper paymentOrderMapper;
+    private final PaymentChannelPolicy paymentChannelPolicy;
 
     public PaymentResponses.Payment create(PaymentRequests.CreatePayment request, String idempotencyKey) {
+        // 必须在生成渠道凭证和写入支付单前拒绝生产环境的模拟支付。
+        paymentChannelPolicy.validate(request.channel());
         log.info("Creating payment for order {} via {}", request.orderNo(), request.channel());
         Instant now = Instant.now();
         // TODO 去订单服务校验订单归属、状态、金额和有效期

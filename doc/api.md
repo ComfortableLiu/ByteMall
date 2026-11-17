@@ -17,7 +17,25 @@
 | `Idempotency-Key` | 创建订单/支付及库存命令 | 建议 UUID；同一操作者下唯一，长度 16–64 |
 | `Content-Type` | 有请求体时 | `application/json` |
 
-### 1.2 数据规范
+### 1.2 公开接口白名单
+
+下列业务接口不要求登录态；除此之外的 HTTP 业务接口默认要求有效 `ACCESS` 类型 JWT。`OPTIONS /**`、健康检查和 `/error` 作为基础设施端点开放，gRPC 接口不使用这套 HTTP 白名单。
+
+| 服务 | 方法 | 公开路径 |
+| --- | --- | --- |
+| user-service | POST | `/auth/login`、`/auth/register`、`/auth/refresh` |
+| product-service | GET | `/products/**`、`/categories/**` |
+| search-service | GET | `/search/**`（商品搜索、搜索联想） |
+| stock-service | GET | `/stocks/sku/**` |
+| pay-service | GET | `/internal/mock-payments/query`（仅非生产环境） |
+| pay-service | POST | `/internal/payment-callbacks/**`；第三方身份由渠道验签确认，而非用户 JWT；生产环境禁止 MOCK 回调 |
+| cart-service、order-service | — | 无公开业务接口 |
+
+购物车、订单、支付单、模拟立即支付、商家后台和库存调整均需要登录。资源服务通过 `jwt.rsa.public-key`（环境变量 `JWT_RSA_PUBLIC_KEY`）验证用户服务签名；用户服务私钥使用 `jwt.rsa.private-key`（环境变量 `JWT_RSA_PRIVATE_KEY`）。本地执行 `start-all.sh` 时会为本次启动生成共享临时密钥，私钥仅注入用户服务，全部服务重启后旧 Token 失效。
+
+ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**。注销会递增 `tokenVersion`，用户服务立即拒绝旧访问/刷新 Token；其他资源服务采用离线验签，不逐请求查询用户服务，因此旧 ACCESS Token 最迟在原 15 分钟有效期结束时失效。需要“注销后所有服务立即失效”的部署应再接入统一 Token introspection 或共享令牌版本校验。
+
+### 1.3 数据规范
 
 - 金额：整数，人民币分；`129900` = ¥1,299.00。
 - 时间：带时区 ISO 8601；服务端数据库使用 UTC。
@@ -189,6 +207,8 @@
 
 数量范围 1–999，合并后超过上限返回 400。读取时实时补齐商品名称、图片、售价、上下架和可售库存；购物车小计仅供展示。订单创建成功后，订单服务发出事件，购物车服务删除已下单项。
 
+当前实现状态：5 个 Controller、请求校验和响应 DTO 已建立；`CartService` 的 Redis、商品与库存查询逻辑尚未实现，有效请求目前返回 501，不能用此架子验证真实购物车读写。
+
 ## 7. order-service
 
 ### 7.1 买家订单
@@ -255,6 +275,8 @@
 发货请求：`carrier`（1–60）、`trackingNo`（1–64）、`version`（订单版本）。成功写入 `SHIPPED`、发货时间、状态历史并递增版本；版本不匹配返回 `VERSION_CONFLICT`。重复请求只有同一物流单号才可幂等返回，否则 409。
 
 订单状态只能按状态机迁移；所有操作使用条件更新。客户端收到 409 后应重新查询，而不是循环提交。
+
+当前实现状态：买家 5 个、商家 3 个 Controller 及请求/响应 DTO 已建立，包含用户 ID 注入和参数校验；`OrderService`、`MerchantOrderService` 的持久化、状态机、gRPC 与事件逻辑尚未实现，有效请求目前返回 501。
 
 ## 8. stock-service
 

@@ -45,6 +45,23 @@ require_command() {
     fi
 }
 
+prepare_shared_jwt_keys() {
+    export -n JWT_RSA_PRIVATE_KEY JWT_RSA_PUBLIC_KEY
+    if [[ -n "${JWT_RSA_PRIVATE_KEY:-}" && -n "${JWT_RSA_PUBLIC_KEY:-}" ]]; then
+        return
+    fi
+    if [[ -n "${JWT_RSA_PRIVATE_KEY:-}" || -n "${JWT_RSA_PUBLIC_KEY:-}" ]]; then
+        echo "JWT_RSA_PRIVATE_KEY 和 JWT_RSA_PUBLIC_KEY 必须同时配置。" >&2
+        exit 1
+    fi
+
+    # 开发环境只在内存中生成密钥；所有服务共享公钥，私钥仅注入user-service。
+    require_command openssl
+    echo "正在生成本次启动共享的临时 RSA JWT 密钥..."
+    JWT_RSA_PRIVATE_KEY="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)"
+    JWT_RSA_PUBLIC_KEY="$(openssl pkey -pubout <<<"$JWT_RSA_PRIVATE_KEY" 2>/dev/null)"
+}
+
 port_in_use() {
     (echo >"/dev/tcp/127.0.0.1/$1") >/dev/null 2>&1
 }
@@ -82,10 +99,11 @@ wait_for_ready() {
             return 1
         fi
 
-        # 健康检查未开放或需要登录时，302/401/403/404也能证明HTTP服务已就绪。
+        # 健康检查公开后，503也能证明HTTP服务已就绪，但表示某些外部依赖不健康。
+        # 302/401/403/404用于兼容尚未开放健康端点的服务。
         http_status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 2 \
             "http://127.0.0.1:$port/actuator/health" 2>/dev/null || true)
-        if [[ "$http_status" =~ ^(200|302|401|403|404)$ ]]; then
+        if [[ "$http_status" =~ ^(200|302|401|403|404|503)$ ]]; then
             echo "$name 已就绪，端口: $port"
             return 0
         fi
@@ -103,15 +121,20 @@ start_service() {
     local name=$1
     local port=$2
     local jar="$ROOT_DIR/$name/target/$name-$PROJECT_VERSION.jar"
+    local jwt_private_key=""
 
     if [[ ! -f "$jar" ]]; then
         echo "找不到可执行JAR: $jar" >&2
         exit 1
     fi
+    if [[ "$name" == "user-service" ]]; then
+        jwt_private_key="$JWT_RSA_PRIVATE_KEY"
+    fi
 
     # 中文括号前使用花括号明确变量边界，避免Bash将括号误并入变量名。
     echo "正在启动 ${name}（端口 ${port}），日志: $LOG_DIR/$name.log"
-    "$JAVA_CMD" -jar "$jar" >"$LOG_DIR/$name.log" 2>&1 &
+    JWT_RSA_PRIVATE_KEY="$jwt_private_key" JWT_RSA_PUBLIC_KEY="$JWT_RSA_PUBLIC_KEY" \
+        "$JAVA_CMD" -jar "$jar" >"$LOG_DIR/$name.log" 2>&1 &
     LAST_PID=$!
     PIDS+=("$LAST_PID")
     wait_for_ready "$name" "$port" "$LAST_PID"
@@ -120,6 +143,7 @@ start_service() {
 require_command "$JAVA_CMD"
 require_command "$MVN_CMD"
 require_command curl
+prepare_shared_jwt_keys
 
 # 不占用或终止已有进程；端口冲突时提前退出。
 for service in "${SERVICES[@]}" "$GATEWAY_SERVICE:$GATEWAY_PORT"; do

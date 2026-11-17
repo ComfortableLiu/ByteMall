@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { ErrorState, LoadingState } from '../components/ui/Feedback.tsx'
 import { createAppAdapter } from '../services/index.ts'
 import type { MockAdapter } from '../services/mock-adapter.ts'
+import { SESSION_EXPIRED_EVENT } from '../services/remote-adapter.ts'
 import type { AppState } from '../types/domain.ts'
 
 type AppAdapter = ReturnType<typeof createAppAdapter>
@@ -77,6 +78,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [api])
   const actions = useMemo(() => buildActions(api, invoke), [api, invoke])
   const announce = useCallback((message: string) => setNotice(message), [])
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch(api.snapshot)
+      setNotice('登录已过期，请重新登录')
+    }
+    globalThis.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    return () => globalThis.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+  }, [api])
 
   useEffect(() => {
     let active = true

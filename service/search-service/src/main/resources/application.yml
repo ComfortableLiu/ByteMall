@@ -1,6 +1,12 @@
 server:
   port: 3005
 
+bytemall:
+  security:
+    # 商品搜索和搜索联想均面向游客开放。
+    public-get-paths:
+      - /api/v1/search/**
+
 spring:
   application:
     name: search-service
