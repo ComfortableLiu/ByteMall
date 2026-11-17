@@ -110,6 +110,8 @@ flowchart TB
 
 JWT 至少包含 `sub`、`roles`、`tokenVersion`、`iat`、`exp`。商家令牌可包含 `merchantId`，但它只是性能优化，服务端仍需查询或校验用户与商家的有效绑定。所有 `/merchant/**` 接口要求 `MERCHANT`，查询和写入都附加 `merchant_id = 当前商家`。
 
+只需要用户 ID 时直接读取已验签 JWT，不额外调用用户服务。需要最新用户资料或账号状态时，通过 `UserService.GetUserContext` 获取最小必要上下文；列表补齐昵称使用 `BatchGetUsers`，订单地址快照使用 `GetAddress`，商家归属使用 `ValidateMerchant`。这些查询由 `user-service` 进程直接提供 gRPC 接口，不新增独立部署单元，也不能代替 Token 撤销检查。
+
 内部接口使用独立服务身份（推荐 mTLS 或签名服务令牌），仅对内网开放。支付回调使用渠道公钥/证书验签，不信任来源 IP 或请求体中的成功状态。
 
 ### 4.3 建议限流基线

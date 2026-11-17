@@ -312,7 +312,37 @@ message CloseOrderResponse {
 
 ### 4.3 UserService
 
-#### 4.3.1 `GetAddress`（规划）
+`user-service` 是用户资料、账号状态、地址和商家绑定的权威来源。以下接口统一放入 `user.proto` 的 `UserService`，由 `user-service` 进程直接提供 gRPC Server，其他服务作为 Client 调用，不新增独立部署的“gRPC 服务”。仅需 JWT 中的用户 ID 时不调用本服务。
+
+#### 4.3.1 `GetUserContext`（规划）
+
+调用方：需要最新用户资料或账号状态的业务服务。用途：将 JWT 中的用户 ID 转换为最小必要的业务用户上下文，不返回完整账号记录。
+
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `user_id` | string | 是 | 从已验签 JWT 的 `sub` 解析出的用户 ID |
+| 出参 | `user_id` | string | 是 | 用户 ID |
+| 出参 | `nickname` | string | 是 | 用户昵称 |
+| 出参 | `avatar_url` | string | 否 | 头像 URL |
+| 出参 | `status` | string | 是 | 账号状态，例如 `ACTIVE`、`DISABLED` |
+| 出参 | `roles` | repeated string | 是 | 当前有效角色，例如 `BUYER`、`MERCHANT` |
+| 出参 | `merchant_id` | string | 否 | 用户存在有效商家绑定时返回 |
+
+处理逻辑：校验内部调用方服务身份 → 按 `user_id` 查询用户及有效商家绑定 → 用户不存在返回 `NOT_FOUND` → 返回当前账号状态、角色和资料。调用方执行受保护业务时必须检查 `status == ACTIVE` 和所需角色，不能只把“RPC 调用成功”视为具备权限。
+
+#### 4.3.2 `BatchGetUsers`（规划）
+
+调用方：订单、售后等需要批量补齐用户摘要的服务。用途：避免列表场景逐条调用造成 N+1；不得用该接口批量导出完整用户资料。
+
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `user_ids` | repeated string | 是 | 用户 ID，去重前最多 100 个，空列表直接返回 |
+| 出参 | `items` | repeated `UserSummary` | 是 | 按去重后的请求顺序返回已找到的用户 |
+| 出参 | `missing_user_ids` | repeated string | 是 | 未找到的用户 ID，不能悄悄忽略 |
+
+`UserSummary` 仅包含 `user_id`、`nickname`、`avatar_url`、`status`。处理逻辑：校验内部服务身份和数量上限 → 去重并批量查询 → 分别返回已找到项与缺失项。列表展示可以使用非实时缓存；涉及权限或资金的操作必须查询最新状态，不能使用摘要缓存代替权限校验。
+
+#### 4.3.3 `GetAddress`（规划）
 
 调用方：`order-service`。用途：读取买家地址并用于订单快照。
 
@@ -330,7 +360,7 @@ message CloseOrderResponse {
 
 处理逻辑：按 `address_id + user_id` 查询 → 不存在或不属于当前用户时返回 `NOT_FOUND`，避免暴露他人地址 → 返回完整地址 → 订单服务复制为快照，不依赖后续可变资料。
 
-#### 4.3.2 `ValidateMerchant`（规划）
+#### 4.3.4 `ValidateMerchant`（规划）
 
 调用方：`product-service`、`stock-service`、`order-service`、`pay-service`。用途：校验用户和商家的有效绑定。
 
@@ -344,6 +374,13 @@ message CloseOrderResponse {
 | 出参 | `reason` | string | 否 | 无权限或商家不可用的原因 |
 
 处理逻辑：查询商家及用户绑定 → 校验商家状态和绑定关系 → 返回 `valid=false` 或 `PERMISSION_DENIED`。不得只信任 JWT 或调用方传入的 `merchantId`；高频校验可使用带失效时间的短时缓存。
+
+`UserService` 统一约束：
+
+- 只返回业务必需字段，禁止返回密码哈希、刷新令牌、密钥或其他认证秘密。
+- gRPC 端口仅对内部网络开放，调用方使用 mTLS 或签名服务令牌证明服务身份；不能允许外部客户端仅凭任意 `user_id` 查询用户资料。
+- `GetUserContext`、`GetAddress` 和 `ValidateMerchant` 是业务数据查询，不承担 ACCESS Token 的验签或撤销检查。需要“注销后所有资源服务立即失效”时，另行定义 Token introspection 或共享 `tokenVersion` 校验契约。
+- 资料展示可以使用短时缓存，账号禁用、商家解绑和权限变更必须使缓存及时失效；权限敏感写操作不得以过期缓存为依据。
 
 ### 4.4 ProductService
 

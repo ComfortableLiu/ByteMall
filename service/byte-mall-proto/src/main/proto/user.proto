@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package com.bytemall.user;
+
+option java_multiple_files = true;
+option java_package = "com.bytemall.user.proto";
+
+service UserService {
+  // 获取用户上下文。
+  rpc GetUserContext (GetUserContextRequest) returns (GetUserContextResponse);
+
+  // 订单、售后等需要批量补齐用户摘要的服务。用途：避免列表场景逐条调用造成 N+1；不得用该接口批量导出完整用户资料。
+  rpc BatchGetUsers (BatchGetUsersRequest) returns (BatchGetUsersResponse);
+
+  // 读取买家地址并用于订单快照。
+  rpc GetAddress (GetAddressRequest) returns (GetAddressResponse);
+
+  // 校验用户和商家的有效绑定。
+  rpc ValidateMerchant (ValidateMerchantRequest) returns (ValidateMerchantResponse);
+}
+
+message GetUserContextRequest {
+  // 用户 ID
+  string user_id = 1;
+}
+message GetUserContextResponse {
+  // 用户 ID
+  uint64 user_id = 1;
+  // 用户昵称
+  string nickname = 2;
+  // 头像 URL
+  string avatar_url = 3;
+  // 账号状态，例如 ACTIVE、DISABLED
+  string status = 4;
+  // 用户存在有效商家绑定时返回
+  int64 merchant_id = 5;
+}
+
+message BatchGetUsersRequest {
+  // 用户 ID 列表
+  repeated uint64 user_ids = 1;
+}
+message BatchGetUsersResponse {
+  // 用户信息列表
+  repeated GetUserContextResponse users = 1;
+}
+
+message GetAddressRequest {
+  // 地址 ID
+  string address_id = 1;
+  // 用户 ID
+  string user_id = 2;
+}
+message GetAddressResponse {
+  // 地址及用户 ID
+  uint64 address_id = 1;
+  // 用户 ID
+  uint64 user_id = 2;
+  // 收集人
+  string receiver_name = 3;
+  // 收件手机号，按敏感信息保护
+  string receiver_mobile = 4;
+  // 省
+  string province = 5;
+  // 市
+  string city = 6;
+  // 区
+  string district = 7;
+  // 详细地址
+  string detail_address = 8;
+  // 邮政编码
+  string postal_code = 9;
+  // 是否默认地址
+  bool is_default = 10;
+}
+
+message ValidateMerchantRequest {
+  // 用户 ID
+  uint64 user_id = 1;
+  // 商户 ID
+  uint64 merchant_id = 2;
+}
+message ValidateMerchantResponse {
+  // 当前用户是否可操作该商家
+  bool valid = 1;
+  // 校验后的商家 ID
+  uint64 merchant_id = 2;
+  // 商家状态，例如 ACTIVE、SUSPENDED
+  string merchant_status = 3;
+  // 无权限或商家不可用的原因
+  string reason = 4;
+}
