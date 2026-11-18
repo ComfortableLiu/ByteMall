@@ -288,9 +288,9 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | GET | `/merchant/stocks` | MERCHANT | 200 `StockItem[]` | 当前商家库存，可按低库存筛选 |
 | PATCH | `/merchant/stocks/{skuId}` | MERCHANT | 200 `StockItem` | `{availableDelta, reason, version}`；结果不得为负 |
 
-商家调整库存会记录操作者和流水；不能用库存调整代替已有预扣单的释放/确认。
+商家调整库存会记录操作者、调整原因和流水；不能用库存调整代替已有预扣单的释放/确认。
 
-当前实现状态：公开查询、商家库存列表/调整、预扣/确认/释放 gRPC 已实现；MySQL 负责库存事务、幂等和防超卖，Redis Lua 仅在事务提交后同步缓存。商家身份通过 user-service 的有效 `merchantId` 判断，商品摘要通过 `ProductService.GetSkuBriefs` 补齐。部署或升级前需执行 `sql/stock_service.sql`；旧库脚本会补充 `request_hash`，未执行时预扣确认/释放会因缺少该列失败。公开旧路径 `/stocks/sku/{skuId}` 同时保留。
+当前实现状态：公开查询、商家库存列表/调整、预扣/确认/释放 gRPC 已实现；MySQL 负责库存事务、幂等和防超卖，Redis Lua 仅在事务提交后同步缓存。商家身份通过 user-service 的有效 `merchantId` 判断，商品摘要通过 `ProductService.GetSkuBriefs` 补齐。公开旧路径 `/stocks/sku/{skuId}` 同时保留。
 
 ### 8.2 内部预扣命令
 

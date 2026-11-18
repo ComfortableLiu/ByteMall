@@ -43,6 +43,7 @@ public class MerchantStockService {
             Long merchantId,
             Long userId,
             int availableDelta,
+            String reason,
             Long expectedVersion,
             String requestId
     ) {
@@ -82,6 +83,7 @@ public class MerchantStockService {
         stockLog.setReservedDelta(0);
         stockLog.setBeforeAvailable(beforeStock.getAvailable());
         stockLog.setAfterAvailable((int) afterAvailable);
+        stockLog.setReason(reason);
         stockLog.setOperatorId(userId);
         stockLog.setRequestId(requestId);
         try {

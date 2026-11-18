@@ -49,6 +49,7 @@ public class MerchantService {
                 merchantId,
                 userId,
                 request.availableDelta(),
+                request.reason(),
                 request.version(),
                 normalizeRequestId(requestId)
         );

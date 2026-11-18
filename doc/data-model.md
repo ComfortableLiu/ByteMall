@@ -164,7 +164,7 @@ Outbox/Inbox 表逻辑相同但由各服务私有，不能跨服务共用一张�
 
 ### 6.3 `stock_log`
 
-字段：`id`、`sku_id`、`reservation_no`、`operation`（`RESERVE`/`CONFIRM`/`RELEASE`/`ADJUST`）、`available_delta`、`reserved_delta`、`before_available`、`after_available`、`operator_id`、`request_id`、`created_at`。唯一约束 `(reservation_no, sku_id, operation)` 防止重复流水；索引 `(sku_id, created_at)`。
+字段：`id`、`sku_id`、`reservation_no`、`operation`（`RESERVE`/`CONFIRM`/`RELEASE`/`ADJUST`）、`available_delta`、`reserved_delta`、`before_available`、`after_available`、`reason`（调整原因，仅 `ADJUST` 记录，可空）、`operator_id`、`request_id`、`created_at`。唯一约束 `(reservation_no, sku_id, operation)` 防止重复流水；索引 `(sku_id, created_at)`。
 
 ## 7. pay-service
 

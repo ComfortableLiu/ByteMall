@@ -758,7 +758,7 @@ paths:
           description: 可售库存
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/StockResponse' }
+              schema: { $ref: '#/components/schemas/StockViewResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /merchant/stocks:
     get:
@@ -1500,6 +1500,19 @@ components:
         availableStock: { type: integer, minimum: 0 }
         reservedStock: { type: integer, minimum: 0 }
         version: { type: integer, minimum: 0 }
+    StockView:
+      type: object
+      required: [skuId, availableStock, version]
+      properties:
+        skuId: { type: string }
+        availableStock: { type: integer, minimum: 0 }
+        version: { type: integer, minimum: 0 }
+    StockViewResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/StockView' }
     StockResponse:
       allOf:
         - $ref: '#/components/schemas/SuccessResponse'

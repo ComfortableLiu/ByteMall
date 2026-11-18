@@ -29,6 +29,8 @@ public class StockLog {
     private Integer reservedDelta;
     private Integer beforeAvailable;
     private Integer afterAvailable;
+    /** 调整原因，仅ADJUST操作记录，其他操作为空。 */
+    private String reason;
     private Long operatorId;
     private String requestId;
     private LocalDateTime createdAt;

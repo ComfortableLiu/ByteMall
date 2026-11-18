@@ -243,7 +243,7 @@ message CloseOrderResponse {
 
 处理逻辑：校验释放原因 → 加锁查询预扣单 → 已释放则幂等返回 → 已确认则返回 `FAILED_PRECONDITION` → 增加 `available`、减少 `reserved` 并递增版本 → 保存释放原因和流水 → 返回释放结果。禁止 `CONFIRMED → RELEASED`。
 
-当前实现使用 `INSERT IGNORE + FOR UPDATE` 处理预扣单并发幂等，以排序合并明细的 SHA-256 作为请求指纹；库存行按 SKU 顺序锁定，所有条件更新、预扣明细和流水处于同一事务。Redis Lua 在事务提交后同步库存 Hash 与短期操作标记，缓存失败只降级不影响 MySQL 结果。超时任务按批次释放到期 `RESERVED` 单。数据库初始化与旧表升级统一执行 `sql/stock_service.sql`，其中包含 `request_hash` 的兼容迁移。
+当前实现使用 `INSERT IGNORE + FOR UPDATE` 处理预扣单并发幂等，以排序合并明细的 SHA-256 作为请求指纹；库存行按 SKU 顺序锁定，所有条件更新、预扣明细和流水处于同一事务。Redis Lua 在事务提交后同步库存 Hash 与短期操作标记，缓存失败只降级不影响 MySQL 结果。超时任务按批次释放到期 `RESERVED` 单。
 
 ### 4.2 PaymentService
 
