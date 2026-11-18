@@ -197,7 +197,7 @@ message CloseOrderResponse {
 
 处理逻辑：校验数量与 ID 格式 → 去重并保持顺序 → 批量查询 `stock_main` → 返回可售量和版本 → 将不存在的 ID 放入 `missing_sku_ids`。该接口只读，不修改库存。
 
-#### 4.1.2 `ReserveStock`（规划）
+#### 4.1.2 `ReserveStock`（服务端已实现）
 
 调用方：`order-service`。用途：创建订单时整体预扣多个 SKU。
 
@@ -214,7 +214,7 @@ message CloseOrderResponse {
 
 处理逻辑：校验数量与明细 → 校验幂等键和请求指纹 → 按固定顺序锁定/更新 SKU → 检查可售量 → 条件更新 `available`、`reserved` 和版本 → 同事务保存预扣单、明细及流水 → 返回 `RESERVED`。任一明细失败则整体回滚；库存不足返回 `RESOURCE_EXHAUSTED`，重复请求返回首次结果。
 
-#### 4.1.3 `ConfirmReservation`（规划）
+#### 4.1.3 `ConfirmReservation`（服务端已实现）
 
 调用方：订单支付事件处理器。用途：支付成功后将预扣转为确认扣减。
 
@@ -228,7 +228,7 @@ message CloseOrderResponse {
 
 处理逻辑：按预扣单号加锁查询 → 已确认则直接返回首次结果 → 已释放则返回 `FAILED_PRECONDITION` → 同时扣减 `total` 和 `reserved` 并递增版本 → 保存库存流水 → 返回确认结果。不得对同一预扣重复扣减。
 
-#### 4.1.4 `ReleaseReservation`（规划）
+#### 4.1.4 `ReleaseReservation`（服务端已实现）
 
 调用方：`order-service`。用途：订单取消或创建失败时回补预扣库存。
 
@@ -242,6 +242,8 @@ message CloseOrderResponse {
 | 出参 | `items` | `repeated ReservationItem` | 是 | 已回补明细 |
 
 处理逻辑：校验释放原因 → 加锁查询预扣单 → 已释放则幂等返回 → 已确认则返回 `FAILED_PRECONDITION` → 增加 `available`、减少 `reserved` 并递增版本 → 保存释放原因和流水 → 返回释放结果。禁止 `CONFIRMED → RELEASED`。
+
+当前实现使用 `INSERT IGNORE + FOR UPDATE` 处理预扣单并发幂等，以排序合并明细的 SHA-256 作为请求指纹；库存行按 SKU 顺序锁定，所有条件更新、预扣明细和流水处于同一事务。Redis Lua 在事务提交后同步库存 Hash 与短期操作标记，缓存失败只降级不影响 MySQL 结果。超时任务按批次释放到期 `RESERVED` 单。数据库初始化与旧表升级统一执行 `sql/stock_service.sql`，其中包含 `request_hash` 的兼容迁移。
 
 ### 4.2 PaymentService
 
@@ -312,9 +314,9 @@ message CloseOrderResponse {
 
 ### 4.3 UserService
 
-`user-service` 是用户资料、账号状态、地址和商家绑定的权威来源。以下接口统一放入 `user.proto` 的 `UserService`，由 `user-service` 进程直接提供 gRPC Server，其他服务作为 Client 调用，不新增独立部署的“gRPC 服务”。仅需 JWT 中的用户 ID 时不调用本服务。
+`user-service` 是用户资料、账号状态、地址和商家绑定的权威来源。以下接口统一放入 `user.proto` 的 `UserService`，由 `user-service` 进程直接提供 gRPC Server，默认端口为 `9093`，其他服务作为 Client 调用，不新增独立部署的“gRPC 服务”。仅需 JWT 中的用户 ID 时不调用本服务。
 
-#### 4.3.1 `GetUserContext`（规划）
+#### 4.3.1 `GetUserContext`（服务端已实现）
 
 调用方：需要最新用户资料或账号状态的业务服务。用途：将 JWT 中的用户 ID 转换为最小必要的业务用户上下文，不返回完整账号记录。
 
@@ -325,10 +327,9 @@ message CloseOrderResponse {
 | 出参 | `nickname` | string | 是 | 用户昵称 |
 | 出参 | `avatar_url` | string | 否 | 头像 URL |
 | 出参 | `status` | string | 是 | 账号状态，例如 `ACTIVE`、`DISABLED` |
-| 出参 | `roles` | repeated string | 是 | 当前有效角色，例如 `BUYER`、`MERCHANT` |
-| 出参 | `merchant_id` | string | 否 | 用户存在有效商家绑定时返回 |
+| 出参 | `merchant_id` | string | 否 | 用户存在有效商家绑定时返回；空值或 `-1` 表示非商家 |
 
-处理逻辑：校验内部调用方服务身份 → 按 `user_id` 查询用户及有效商家绑定 → 用户不存在返回 `NOT_FOUND` → 返回当前账号状态、角色和资料。调用方执行受保护业务时必须检查 `status == ACTIVE` 和所需角色，不能只把“RPC 调用成功”视为具备权限。
+处理逻辑：校验内部调用方服务身份 → 按 `user_id` 查询用户及有效商家绑定 → 用户不存在返回 `NOT_FOUND` → 返回当前账号状态和资料。调用方执行受保护业务时必须检查 `status == ACTIVE`；商家业务还必须取得有效 `merchant_id`，空值或 `-1` 均按非商家处理，不能只把“RPC 调用成功”视为具备商家权限。
 
 #### 4.3.2 `BatchGetUsers`（规划）
 
@@ -383,6 +384,8 @@ message CloseOrderResponse {
 - 资料展示可以使用短时缓存，账号禁用、商家解绑和权限变更必须使缓存及时失效；权限敏感写操作不得以过期缓存为依据。
 
 ### 4.4 ProductService
+
+商品服务由 `product-service` 进程直接提供 gRPC Server，默认端口为 `9094`。库存服务通过以下接口批量补齐商品摘要，不需要访问商品数据库。
 
 #### 4.4.1 `GetSkuBatch`（规划）
 
@@ -439,7 +442,7 @@ message CloseOrderResponse {
 
 处理逻辑：使用 `id > after_id ORDER BY id LIMIT size + 1` 游标扫描 → 按 `GetIndexDocument` 的相同规则批量组装文档 → 根据额外一条判断 `has_more` → 返回本批最后一个 ID 作为下一游标。禁止普通页码扫描导致数据变化时漏商品。
 
-#### 4.4.5 `GetSkuBriefs`（规划）
+#### 4.4.5 `GetSkuBriefs`（服务端已实现）
 
 调用方：`stock-service`。用途：商家库存页补齐商品和 SKU 信息。
 

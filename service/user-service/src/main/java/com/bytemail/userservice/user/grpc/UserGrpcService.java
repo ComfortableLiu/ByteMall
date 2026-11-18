@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.bytemail.userservice.user.entity.Merchant;
 import com.bytemail.userservice.user.entity.UserAccount;
 import com.bytemail.userservice.user.entity.UserAddress;
-import com.bytemail.userservice.user.mapper.MerchantMapper;
+import com.bytemail.userservice.merchants.MerchantMapper;
 import com.bytemail.userservice.user.mapper.UserAccountMapper;
 import com.bytemail.userservice.user.mapper.UserAddressMapper;
 import com.bytemall.user.proto.*;

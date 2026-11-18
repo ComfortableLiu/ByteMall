@@ -1,4 +1,4 @@
-package com.bytemail.userservice.user.mapper;
+package com.bytemail.userservice.merchants;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.bytemail.userservice.user.entity.MerchantApplication;

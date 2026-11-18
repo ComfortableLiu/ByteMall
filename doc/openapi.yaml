@@ -1085,15 +1085,12 @@ components:
         password: { type: string, minLength: 1, maxLength: 128, format: password }
     User:
       type: object
-      required: [userId, nickname, roles]
+      required: [userId, nickname]
       properties:
         userId: { type: string }
         nickname: { type: string }
         avatarUrl: { type: string }
-        roles:
-          type: array
-          items: { type: string, enum: [BUYER, MERCHANT, ADMIN] }
-        merchantId: { type: string }
+        merchantId: { type: string, description: 有效商家ID；空值或-1表示非商家 }
     AuthResult:
       type: object
       required: [accessToken, refreshToken, expiresIn, tokenType, user]

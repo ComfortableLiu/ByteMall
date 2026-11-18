@@ -24,7 +24,7 @@ export function RequireAuth({ children, merchant = false }: { children: ReactNod
   if (!state.currentUser) {
     return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />
   }
-  if (merchant && (!state.currentUser.roles.includes('MERCHANT') || !state.currentUser.merchantId)) {
+  if (merchant && (!state.currentUser.merchantId || state.currentUser.merchantId === '-1')) {
     return <Navigate to="/merchant/apply" replace />
   }
   return children

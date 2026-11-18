@@ -9,7 +9,7 @@ export default function MerchantApplyPage() {
   const { state, actions } = useAppStore()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
-  const isMerchant = state.currentUser?.roles.includes('MERCHANT')
+  const isMerchant = Boolean(state.currentUser?.merchantId && state.currentUser.merchantId !== '-1')
   const application = state.applications.find((item) => item.userId === state.currentUser?.userId)
 
   const submit = async (form: HTMLFormElement) => {

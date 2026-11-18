@@ -5,7 +5,7 @@ import com.bytemail.userservice.user.dto.RegisterRequest;
 import com.bytemail.userservice.user.dto.UserResponse;
 import com.bytemail.userservice.user.entity.Merchant;
 import com.bytemail.userservice.user.entity.UserAccount;
-import com.bytemail.userservice.user.mapper.MerchantMapper;
+import com.bytemail.userservice.merchants.MerchantMapper;
 import com.bytemail.userservice.user.mapper.UserAccountMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class UserService {
                     userAccount.getId(),
                     userAccount.getNickname(),
                     userAccount.getAvatarUrl(),
-                    merchant == null ? -1 : merchant.getId()
+                    merchant == null ? "-1" : String.valueOf(merchant.getId())
             );
         }
         return null;
@@ -59,7 +59,7 @@ public class UserService {
                 userAccount.getId(),
                 userAccount.getNickname(),
                 userAccount.getAvatarUrl(),
-                merchant == null ? -1 : merchant.getId()
+                merchant == null ? "-1" : String.valueOf(merchant.getId())
         );
     }
 

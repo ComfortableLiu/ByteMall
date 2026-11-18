@@ -165,7 +165,7 @@ export class RemoteAdapter {
     this.syncCart(cart)
     this.state.addresses = addresses
     this.state.orders = orders.items
-    if (this.state.currentUser?.roles.includes('MERCHANT')) {
+    if (this.state.currentUser?.merchantId && this.state.currentUser.merchantId !== '-1') {
       const [shop] = await Promise.all([
         this.request<MerchantShop>('/merchant/shop'),
         this.listMerchantProducts(),
@@ -200,7 +200,7 @@ export class RemoteAdapter {
       method: 'POST',
       body: { mobile: options.mobile, password: options.password, ...(options.mode === 'register' ? { nickname: options.nickname } : {}) },
     })
-    if (role === 'merchant' && !result.user.roles.includes('MERCHANT')) {
+    if (role === 'merchant' && (!result.user.merchantId || result.user.merchantId === '-1')) {
       throw new DomainError('MERCHANT_REQUIRED', '该账号没有商家权限', 403)
     }
     this.accessToken = result.accessToken

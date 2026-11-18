@@ -152,8 +152,8 @@ export function createSeedState(): AppState {
     schemaVersion: 1,
     currentUser: null,
     users: {
-      buyer: { userId: 'buyer-001', nickname: '林小满', roles: ['BUYER'] },
-      merchant: { userId: 'merchant-user-001', nickname: 'ByteMall 精选店', roles: ['BUYER', 'MERCHANT'], merchantId: 'merchant-001' },
+      buyer: { userId: 'buyer-001', nickname: '林小满' },
+      merchant: { userId: 'merchant-user-001', nickname: 'ByteMall 精选店', merchantId: 'merchant-001' },
     },
     categories: [
       { categoryId: 'cat-digital', name: '数码科技', level: 1, icon: 'digital' },

@@ -6,6 +6,7 @@ bytemall:
     # 商品详情可展示可售库存；商家库存列表和调整接口仍需登录。
     public-get-paths:
       - /api/v1/stocks/sku/**
+      - /api/v1/stocks/skus/**
 
 grpc:
   server:

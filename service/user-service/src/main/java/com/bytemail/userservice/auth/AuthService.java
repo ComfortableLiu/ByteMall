@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.bytemail.userservice.user.dto.RegisterRequest;
 import com.bytemail.userservice.user.entity.Merchant;
 import com.bytemail.userservice.user.entity.UserAccount;
-import com.bytemail.userservice.user.mapper.MerchantMapper;
+import com.bytemail.userservice.merchants.MerchantMapper;
 import com.bytemail.userservice.user.mapper.UserAccountMapper;
 import com.bytemail.userservice.user.UserService;
 import io.jsonwebtoken.Claims;
@@ -19,7 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.KeyPair;
 import java.util.Date;
-import java.util.List;
 
 import static io.jsonwebtoken.Jwts.SIG.RS256;
 
@@ -121,15 +120,11 @@ public class AuthService {
     }
 
     private AuthResponse.User userView(UserAccount userAccount, Merchant merchant) {
-        List<String> roles = merchant == null
-                ? List.of("BUYER")
-                : List.of("BUYER", "MERCHANT");
         return new AuthResponse.User(
                 String.valueOf(userAccount.getId()),
                 userAccount.getNickname(),
                 userAccount.getAvatarUrl(),
-                roles,
-                merchant == null ? null : String.valueOf(merchant.getId())
+                merchant == null ? "-1" : String.valueOf(merchant.getId())
         );
     }
 

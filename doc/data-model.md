@@ -158,7 +158,7 @@ Outbox/Inbox 表逻辑相同但由各服务私有，不能跨服务共用一张�
 
 ### 6.2 预扣单与明细
 
-`stock_reservation`：`id`、`reservation_no` UNIQUE、`order_no`、`status`（`RESERVED`/`CONFIRMED`/`RELEASED`）、`reason`、`expire_at`、`confirmed_at`、`released_at`、`created_at`、`updated_at`。索引 `(order_no)`、`(status, expire_at)`。
+`stock_reservation`：`id`、`reservation_no` UNIQUE、`order_no`、`status`（`RESERVED`/`CONFIRMED`/`RELEASED`）、`reason`、`request_hash`（规范化明细的 SHA-256 请求指纹）、`expire_at`、`confirmed_at`、`released_at`、`created_at`、`updated_at`。索引 `(order_no)`、`(status, expire_at)`。
 
 `stock_reservation_item`：`id`、`reservation_id`、`sku_id`、`quantity`、`created_at`，唯一键 `(reservation_id, sku_id)`。重复请求通过预扣单号和明细指纹核对，键相同但数量不同返回幂等冲突。
 

@@ -1,4 +1,3 @@
-export type Role = 'BUYER' | 'MERCHANT' | 'ADMIN'
 export type DemoRole = 'buyer' | 'merchant'
 export type ProductStatus = 'DRAFT' | 'ON_SALE' | 'OFF_SALE'
 export type OrderStatus = 'PENDING_PAYMENT' | 'PENDING_SHIPMENT' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED' | 'REFUNDING' | 'REFUNDED'
@@ -10,7 +9,6 @@ export interface User {
   userId: string
   nickname: string
   avatarUrl?: string
-  roles: Role[]
   merchantId?: string
 }
 

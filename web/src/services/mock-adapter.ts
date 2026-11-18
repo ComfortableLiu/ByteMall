@@ -81,16 +81,12 @@ export class MockAdapter {
   }
 
   private buyer(): User {
-    const user = this.currentUser()
-    if (!user.roles.includes('BUYER')) {
-      throw new DomainError('FORBIDDEN', '当前身份没有买家权限', 403)
-    }
-    return user
+    return this.currentUser()
   }
 
   private merchant(): User {
     const user = this.currentUser()
-    if (!user.roles.includes('MERCHANT') || !user.merchantId) {
+    if (!user.merchantId || user.merchantId === '-1') {
       throw new DomainError('MERCHANT_REQUIRED', '请切换为商家身份后继续', 403)
     }
     return user
