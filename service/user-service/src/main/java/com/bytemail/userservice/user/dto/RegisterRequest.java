@@ -14,7 +14,7 @@ public class RegisterRequest{
     private String mobile;
 
     @NotBlank(message = "密码不能为空")
-    @Size(min = 6, max = 13, message = "手机号应该在6位到13位")
+    @Size(min = 8, max = 128, message = "密码长度必须在8到128个字符之间")
     private String password;
 
     @NotBlank(message = "昵称不能为空")

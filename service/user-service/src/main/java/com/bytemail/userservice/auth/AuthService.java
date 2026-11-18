@@ -104,8 +104,8 @@ public class AuthService {
     private AuthResponse issueTokens(UserAccount userAccount) {
         Merchant merchant = findActiveMerchant(userAccount.getId());
         return new AuthResponse(
-                createToken(userAccount),
-                createRefreshToken(userAccount),
+                buildJwt(userAccount, "ACCESS", TOKEN_EXPIRES_IN),
+                buildJwt(userAccount, "REFRESH", REFRESH_TOKEN_EXPIRES_IN),
                 TOKEN_EXPIRES_IN,
                 "Bearer",
                 userView(userAccount, merchant)
@@ -126,14 +126,6 @@ public class AuthService {
                 userAccount.getAvatarUrl(),
                 merchant == null ? "-1" : String.valueOf(merchant.getId())
         );
-    }
-
-    public String createToken(UserAccount userAccount) {
-        return buildJwt(userAccount, "ACCESS", TOKEN_EXPIRES_IN);
-    }
-
-    public String createRefreshToken(UserAccount userAccount) {
-        return buildJwt(userAccount, "REFRESH", REFRESH_TOKEN_EXPIRES_IN);
     }
 
     /** 使用RSA私钥签发RS256 Token，并写入类型和版本用于后续校验。 */

@@ -30,16 +30,16 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         UserAccount userAccount = userAccountMapper.selectById(userId);
-        Merchant merchant = merchantMapper.selectOne(new QueryWrapper<Merchant>().eq("owner_user_id", userId));
-        if (userAccount != null) {
-            return new UserResponse.User(
-                    userAccount.getId(),
-                    userAccount.getNickname(),
-                    userAccount.getAvatarUrl(),
-                    merchant == null ? "-1" : String.valueOf(merchant.getId())
-            );
+        if (userAccount == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在");
         }
-        return null;
+        Merchant merchant = merchantMapper.selectOne(new QueryWrapper<Merchant>().eq("owner_user_id", userId));
+        return new UserResponse.User(
+                userAccount.getId(),
+                userAccount.getNickname(),
+                userAccount.getAvatarUrl(),
+                merchant == null ? "-1" : String.valueOf(merchant.getId())
+        );
     }
 
     @Transactional
@@ -51,6 +51,9 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
         UserAccount userAccount = userAccountMapper.selectById(userId);
+        if (userAccount == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在");
+        }
         Merchant merchant = merchantMapper.selectOne(new QueryWrapper<Merchant>().eq("owner_user_id", userId));
         userAccount.setAvatarUrl(user.avatarUrl());
         userAccount.setNickname(user.nickname());
