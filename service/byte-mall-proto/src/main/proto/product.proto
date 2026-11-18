@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package com.bytemall.product;
+
+option java_multiple_files = true;
+option java_package = "com.bytemall.product.proto";
+
+// 商品服务：为内部服务提供商品与 SKU 的批量查询能力。
+service ProductService {
+  // 批量查询 SKU 摘要，保留所有商品状态并单独返回不存在的 SKU。
+  rpc GetSkuBriefs (GetSkuBriefsRequest) returns (GetSkuBriefsResponse);
+}
+
+message GetSkuBriefsRequest {
+  // 单次支持 1 到 100 个 SKU ID，服务端按首次出现顺序去重。
+  repeated string sku_ids = 1;
+}
+
+message GetSkuBriefsResponse {
+  repeated SkuBrief items = 1;
+  repeated string missing_sku_ids = 2;
+}
+
+message SkuBrief {
+  string sku_id = 1;
+  string spu_id = 2;
+  string merchant_id = 3;
+  string product_title = 4;
+  string product_image = 5;
+  string sku_code = 6;
+  string spec_json = 7;
+  bool enabled = 8;
+  // DRAFT、ON_SALE、OFF_SALE 等商品原始状态，不在服务端过滤。
+  string status = 9;
+  int64 version = 10;
+}

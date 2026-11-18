@@ -1,15 +1,18 @@
-package com.bytemail.userservice.user.service;
+package com.bytemail.userservice.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.bytemail.userservice.user.dto.RegisterRequest;
+import com.bytemail.userservice.user.dto.UserResponse;
+import com.bytemail.userservice.user.entity.Merchant;
 import com.bytemail.userservice.user.entity.UserAccount;
+import com.bytemail.userservice.user.mapper.MerchantMapper;
 import com.bytemail.userservice.user.mapper.UserAccountMapper;
-import com.bytemall.common.model.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -19,13 +22,48 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class UserService {
     private final UserAccountMapper userAccountMapper;
+    private final MerchantMapper merchantMapper;
     private final PasswordEncoder passwordEncoder;
 
-    public UserAccount getById(Long id) {
-        return userAccountMapper.selectById(id);
+    public UserResponse.User getCurrentUser(Long userId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        UserAccount userAccount = userAccountMapper.selectById(userId);
+        Merchant merchant = merchantMapper.selectOne(new QueryWrapper<Merchant>().eq("owner_user_id", userId));
+        if (userAccount != null) {
+            return new UserResponse.User(
+                    userAccount.getId(),
+                    userAccount.getNickname(),
+                    userAccount.getAvatarUrl(),
+                    merchant == null ? -1 : merchant.getId()
+            );
+        }
+        return null;
     }
 
-    public UserAccount createUser (
+    @Transactional
+    public UserResponse.User updateCurrentUser(Long userId, UserResponse.User user) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        }
+        UserAccount userAccount = userAccountMapper.selectById(userId);
+        Merchant merchant = merchantMapper.selectOne(new QueryWrapper<Merchant>().eq("owner_user_id", userId));
+        userAccount.setAvatarUrl(user.avatarUrl());
+        userAccount.setNickname(user.nickname());
+        userAccountMapper.updateById(userAccount);
+        return new UserResponse.User(
+                userAccount.getId(),
+                userAccount.getNickname(),
+                userAccount.getAvatarUrl(),
+                merchant == null ? -1 : merchant.getId()
+        );
+    }
+
+    public UserAccount createUser(
             RegisterRequest request
     ) {
         // 只记录手机号，不能把包含明文密码的请求对象输出到日志。

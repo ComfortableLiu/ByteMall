@@ -6,7 +6,7 @@ import com.bytemail.userservice.user.entity.Merchant;
 import com.bytemail.userservice.user.entity.UserAccount;
 import com.bytemail.userservice.user.mapper.MerchantMapper;
 import com.bytemail.userservice.user.mapper.UserAccountMapper;
-import com.bytemail.userservice.user.service.UserService;
+import com.bytemail.userservice.user.UserService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -100,16 +100,6 @@ public class AuthService {
         if (userId == null || userAccountMapper.incrementTokenVersion(userId) != 1) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在");
         }
-    }
-
-    /** 返回当前登录用户及有效的商家身份。 */
-    public AuthResponse.User currentUser(Long userId) {
-        UserAccount userAccount = userAccountMapper.selectById(userId);
-        if (userAccount == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在");
-        }
-        Merchant merchant = findActiveMerchant(userId);
-        return userView(userAccount, merchant);
     }
 
     private AuthResponse issueTokens(UserAccount userAccount) {

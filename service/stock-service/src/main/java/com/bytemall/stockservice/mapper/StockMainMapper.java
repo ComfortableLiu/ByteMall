@@ -22,10 +22,14 @@ public interface StockMainMapper extends BaseMapper<StockMain> {
             UPDATE stock_main
             SET available = available - #{quantity},
                 reserved = reserved + #{quantity},
+                updated_at = UTC_TIMESTAMP(6),
                 version = version + 1
             WHERE sku_id = #{skuId}
               AND version = #{version}
               AND available >= #{quantity}
+              AND available >= 0
+              AND reserved >= 0
+              AND total = available + reserved
             """)
     int reserveStock(@Param("skuId") Long skuId,
                      @Param("quantity") Integer quantity,
@@ -35,11 +39,14 @@ public interface StockMainMapper extends BaseMapper<StockMain> {
             UPDATE stock_main
             SET total = total - #{quantity},
                 reserved = reserved - #{quantity},
+                updated_at = UTC_TIMESTAMP(6),
                 version = version + 1
             WHERE sku_id = #{skuId}
               AND version = #{version}
               AND reserved >= #{quantity}
               AND total >= #{quantity}
+              AND available >= 0
+              AND total = available + reserved
             """)
     int confirmReservation(@Param("skuId") Long skuId,
                            @Param("quantity") Integer quantity,
@@ -49,10 +56,13 @@ public interface StockMainMapper extends BaseMapper<StockMain> {
             UPDATE stock_main
             SET available = available + #{quantity},
                 reserved = reserved - #{quantity},
+                updated_at = UTC_TIMESTAMP(6),
                 version = version + 1
             WHERE sku_id = #{skuId}
               AND version = #{version}
               AND reserved >= #{quantity}
+              AND available >= 0
+              AND total = available + reserved
             """)
     int releaseReservation(@Param("skuId") Long skuId,
                            @Param("quantity") Integer quantity,
@@ -62,12 +72,15 @@ public interface StockMainMapper extends BaseMapper<StockMain> {
             UPDATE stock_main
             SET available = available + #{availableDelta},
                 total = total + #{availableDelta},
+                updated_at = UTC_TIMESTAMP(6),
                 version = version + 1
             WHERE sku_id = #{skuId}
               AND merchant_id = #{merchantId}
               AND version = #{version}
               AND available + #{availableDelta} >= 0
               AND total + #{availableDelta} >= 0
+              AND reserved >= 0
+              AND total = available + reserved
             """)
     int adjustAvailableStock(@Param("skuId") Long skuId,
                              @Param("merchantId") Long merchantId,
