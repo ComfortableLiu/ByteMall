@@ -1,9 +1,12 @@
 package com.bytemall.productservice.grpc;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.bytemall.product.proto.GetSkuBatchRequest;
+import com.bytemall.product.proto.GetSkuBatchResponse;
 import com.bytemall.product.proto.GetSkuBriefsRequest;
 import com.bytemall.product.proto.GetSkuBriefsResponse;
 import com.bytemall.product.proto.ProductServiceGrpc;
+import com.bytemall.product.proto.ProductSkuInfo;
 import com.bytemall.product.proto.SkuBrief;
 import com.bytemall.productservice.entity.ProductImage;
 import com.bytemall.productservice.entity.ProductSku;
@@ -56,6 +59,82 @@ public class ProductGrpcService extends ProductServiceGrpc.ProductServiceImplBas
                     .withDescription("查询SKU摘要失败")
                     .asRuntimeException());
         }
+    }
+
+    @Override
+    public void getSkuBatch(
+            GetSkuBatchRequest request,
+            StreamObserver<GetSkuBatchResponse> responseObserver
+    ) {
+        try {
+            responseObserver.onNext(querySkuBatch(request));
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException exception) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(exception.getMessage())
+                    .asRuntimeException());
+        } catch (RuntimeException exception) {
+            log.error("Failed to get SKU batch", exception);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("查询SKU快照失败")
+                    .asRuntimeException());
+        }
+    }
+
+    /**
+     * 下单快照查询：SKU、SPU和主图各查一次，带出现价与上下架状态，不做过滤。
+     */
+    private GetSkuBatchResponse querySkuBatch(GetSkuBatchRequest request) {
+        if (request.getSkuIdsCount() == 0 || request.getSkuIdsCount() > 100) {
+            throw new IllegalArgumentException("skuIds必须包含1到100项");
+        }
+
+        Set<Long> skuIds = request.getSkuIdsList().stream()
+                .map(ProductGrpcService::parseSkuId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, ProductSku> skusById = productSkuMapper.selectByIds(skuIds).stream()
+                .collect(Collectors.toMap(ProductSku::getId, Function.identity()));
+
+        Set<Long> spuIds = skusById.values().stream()
+                .map(ProductSku::getSpuId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, ProductSpu> spusById = spuIds.isEmpty()
+                ? Map.of()
+                : productSpuMapper.selectByIds(spuIds).stream()
+                        .collect(Collectors.toMap(ProductSpu::getId, Function.identity()));
+        Map<Long, String> primaryImagesBySpuId = queryPrimaryImages(spuIds);
+
+        GetSkuBatchResponse.Builder response = GetSkuBatchResponse.newBuilder();
+        List<String> missingSkuIds = new ArrayList<>();
+        for (Long skuId : skuIds) {
+            ProductSku sku = skusById.get(skuId);
+            ProductSpu spu = sku == null ? null : spusById.get(sku.getSpuId());
+            if (sku == null || spu == null) {
+                missingSkuIds.add(skuId.toString());
+                continue;
+            }
+            response.addItems(ProductSkuInfo.newBuilder()
+                    .setSkuId(sku.getId().toString())
+                    .setSpuId(spu.getId().toString())
+                    .setMerchantId(spu.getMerchantId() == null ? "" : spu.getMerchantId().toString())
+                    .setTitle(nullToEmpty(spu.getTitle()))
+                    .setSubtitle(nullToEmpty(spu.getSubtitle()))
+                    .setBrand(nullToEmpty(spu.getBrand()))
+                    .setCategoryId(spu.getCategoryId() == null ? "" : spu.getCategoryId().toString())
+                    .setCoverImage(primaryImagesBySpuId.getOrDefault(spu.getId(), ""))
+                    .setSpecJson(nullToEmpty(sku.getSpecJson()))
+                    .setPrice(sku.getPrice() == null ? 0L : sku.getPrice())
+                    .setOriginalPrice(sku.getOriginalPrice() == null ? 0L : sku.getOriginalPrice())
+                    .setEnabled(Boolean.TRUE.equals(sku.getEnabled()))
+                    .setStatus(nullToEmpty(spu.getStatus()))
+                    .setVersion(spu.getVersion() == null ? 0L : spu.getVersion())
+                    .build());
+        }
+        response.addAllMissingSkuIds(missingSkuIds);
+        log.info("Getting SKU batch for {} SKUs, found {}, missing {}",
+                skuIds.size(), response.getItemsCount(), missingSkuIds.size());
+        return response.build();
     }
 
     /**

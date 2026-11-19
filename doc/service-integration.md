@@ -331,7 +331,7 @@ message CloseOrderResponse {
 
 处理逻辑：校验内部调用方服务身份 → 按 `user_id` 查询用户及有效商家绑定 → 用户不存在返回 `NOT_FOUND` → 返回当前账号状态和资料。调用方执行受保护业务时必须检查 `status == ACTIVE`；商家业务还必须取得有效 `merchant_id`，空值或 `-1` 均按非商家处理，不能只把“RPC 调用成功”视为具备商家权限。
 
-#### 4.3.2 `BatchGetUsers`（规划）
+#### 4.3.2 `BatchGetUsers`（服务端已实现）
 
 调用方：订单、售后等需要批量补齐用户摘要的服务。用途：避免列表场景逐条调用造成 N+1；不得用该接口批量导出完整用户资料。
 
@@ -343,7 +343,7 @@ message CloseOrderResponse {
 
 `UserSummary` 仅包含 `user_id`、`nickname`、`avatar_url`、`status`。处理逻辑：校验内部服务身份和数量上限 → 去重并批量查询 → 分别返回已找到项与缺失项。列表展示可以使用非实时缓存；涉及权限或资金的操作必须查询最新状态，不能使用摘要缓存代替权限校验。
 
-#### 4.3.3 `GetAddress`（规划）
+#### 4.3.3 `GetAddress`（服务端已实现）
 
 调用方：`order-service`。用途：读取买家地址并用于订单快照。
 
@@ -361,7 +361,7 @@ message CloseOrderResponse {
 
 处理逻辑：按 `address_id + user_id` 查询 → 不存在或不属于当前用户时返回 `NOT_FOUND`，避免暴露他人地址 → 返回完整地址 → 订单服务复制为快照，不依赖后续可变资料。
 
-#### 4.3.4 `ValidateMerchant`（规划）
+#### 4.3.4 `ValidateMerchant`（服务端已实现）
 
 调用方：`product-service`、`stock-service`、`order-service`、`pay-service`。用途：校验用户和商家的有效绑定。
 
@@ -387,7 +387,7 @@ message CloseOrderResponse {
 
 商品服务由 `product-service` 进程直接提供 gRPC Server，默认端口为 `9094`。库存服务通过以下接口批量补齐商品摘要，不需要访问商品数据库。
 
-#### 4.4.1 `GetSkuBatch`（规划）
+#### 4.4.1 `GetSkuBatch`（服务端已实现）
 
 调用方：`order-service`。用途：创建订单时重新定价并生成商品快照。
 

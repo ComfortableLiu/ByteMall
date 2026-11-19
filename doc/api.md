@@ -276,7 +276,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 
 订单状态只能按状态机迁移；所有操作使用条件更新。客户端收到 409 后应重新查询，而不是循环提交。
 
-当前实现状态：买家 5 个、商家 3 个 Controller 及请求/响应 DTO 已建立，包含用户 ID 注入和参数校验；`OrderService`、`MerchantOrderService` 的持久化、状态机、gRPC 与事件逻辑尚未实现，有效请求目前返回 501。
+当前实现状态：`POST /orders` 已实现——幂等键查重与冲突检测、地址快照（`UserService.GetAddress`）、`ProductService.GetSkuBatch` 重新定价、整体库存预扣（失败自动回补）以及订单/明细/历史/幂等记录落库，同键同请求重放返回原订单。买家的列表、详情、取消、确认收货与商家 3 个接口及 `MerchantOrderService` 的持久化、状态机和事件逻辑尚未实现，有效请求仍返回 501。
 
 ## 8. stock-service
 

@@ -28,11 +28,14 @@ public class PaymentsController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @CurrentUserId Long userId
     ) {
-        return ApiResponse.ok(paymentsService.create(request, idempotencyKey));
+        return ApiResponse.ok(paymentsService.create(request, idempotencyKey, userId));
     }
 
     @GetMapping("/{payNo}")
-    public ApiResponse<PaymentResponses.Payment> get(@PathVariable String payNo) {
-        return ApiResponse.ok(paymentsService.get(payNo));
+    public ApiResponse<PaymentResponses.Payment> get(
+            @PathVariable String payNo,
+            @CurrentUserId Long userId
+    ) {
+        return ApiResponse.ok(paymentsService.getForBuyer(payNo, userId));
     }
 }
