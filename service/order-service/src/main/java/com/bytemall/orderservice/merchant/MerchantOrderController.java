@@ -27,7 +27,6 @@ public class MerchantOrderController {
 
     @GetMapping
     public ApiResponse<OrderResponses.OrderPage> list(
-            // 商家方法统一传递userId，由Service后续解析商家归属，不硬编码merchantId。
             @CurrentUserId Long userId,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) String keyword,

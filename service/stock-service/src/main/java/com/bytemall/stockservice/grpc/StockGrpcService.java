@@ -5,6 +5,8 @@ import com.bytemall.stock.proto.ConfirmReservationRequest;
 import com.bytemall.stock.proto.ConfirmReservationResponse;
 import com.bytemall.stock.proto.GetAvailableStocksRequest;
 import com.bytemall.stock.proto.GetAvailableStocksResponse;
+import com.bytemall.stock.proto.InitStocksRequest;
+import com.bytemall.stock.proto.InitStocksResponse;
 import com.bytemall.stock.proto.ReleaseReservationRequest;
 import com.bytemall.stock.proto.ReleaseReservationResponse;
 import com.bytemall.stock.proto.ReserveStockRequest;
@@ -14,6 +16,7 @@ import com.bytemall.stockservice.entity.StockMain;
 import com.bytemall.stockservice.mapper.StockMainMapper;
 import com.bytemall.stockservice.reservation.ReservationException;
 import com.bytemall.stockservice.reservation.ReservationService;
+import com.bytemall.stockservice.stocks.StockInitService;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +44,7 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
 
     private final StockMainMapper stockMainMapper;
     private final ReservationService reservationService;
+    private final StockInitService stockInitService;
 
     @Override
     public void getAvailableStocks(
@@ -74,6 +78,14 @@ public class StockGrpcService extends StockServiceGrpc.StockServiceImplBase {
     ) {
         respond(responseObserver, "ReleaseReservation",
                 () -> reservationService.release(request.getReservationNo(), request.getReason()));
+    }
+
+    @Override
+    public void initStocks(
+            InitStocksRequest request,
+            StreamObserver<InitStocksResponse> responseObserver
+    ) {
+        respond(responseObserver, "InitStocks", () -> stockInitService.initStocks(request));
     }
 
     /**

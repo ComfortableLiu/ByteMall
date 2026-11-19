@@ -15,10 +15,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -50,21 +52,76 @@ public class ProductDetailReader {
             return Optional.empty();
         }
 
-        List<ProductResponses.Image> images = productImageMapper.selectList(
-                        Wrappers.<ProductImage>lambdaQuery()
-                                .eq(ProductImage::getSpuId, spuId)
-                                .orderByDesc(ProductImage::getPrimaryImage)
-                                .orderByAsc(ProductImage::getSortOrder, ProductImage::getId))
+        List<ProductImage> imageRows = productImageMapper.selectList(
+                Wrappers.<ProductImage>lambdaQuery()
+                        .eq(ProductImage::getSpuId, spuId)
+                        .orderByDesc(ProductImage::getPrimaryImage)
+                        .orderByAsc(ProductImage::getSortOrder, ProductImage::getId));
+
+        Map<Long, Integer> stocks = productStockClient.getAvailableStocks(
+                skuRows.stream().map(ProductSku::getId).toList());
+
+        return Optional.of(assemble(spu, skuRows, imageRows, stocks));
+    }
+
+    /**
+     * 批量装配商品详情：SKU、图片和库存各批量查询一次，避免逐个商品N+1。
+     * 无SKU的商品跳过，保持与单个read相同的缺失语义。
+     */
+    public List<ProductResponses.ProductDetail> readBatch(List<ProductSpu> spuList, SkuScope skuScope) {
+        if (spuList.isEmpty()) {
+            return List.of();
+        }
+        List<Long> spuIds = spuList.stream().map(ProductSpu::getId).toList();
+
+        Map<Long, List<ProductSku>> skusBySpu = productSkuMapper
+                .selectList(Wrappers.<ProductSku>lambdaQuery()
+                        .in(ProductSku::getSpuId, spuIds)
+                        .eq(skuScope == SkuScope.ENABLED_ONLY, ProductSku::getEnabled, true)
+                        .orderByAsc(ProductSku::getId))
                 .stream()
+                .collect(Collectors.groupingBy(ProductSku::getSpuId));
+
+        Map<Long, List<ProductImage>> imagesBySpu = productImageMapper
+                .selectList(Wrappers.<ProductImage>lambdaQuery()
+                        .in(ProductImage::getSpuId, spuIds)
+                        .orderByDesc(ProductImage::getPrimaryImage)
+                        .orderByAsc(ProductImage::getSortOrder, ProductImage::getId))
+                .stream()
+                .collect(Collectors.groupingBy(ProductImage::getSpuId));
+
+        List<Long> skuIds = skusBySpu.values().stream()
+                .flatMap(List::stream)
+                .map(ProductSku::getId)
+                .toList();
+        Map<Long, Integer> stocks = skuIds.isEmpty()
+                ? Map.of()
+                : productStockClient.getAvailableStocks(skuIds);
+
+        List<ProductResponses.ProductDetail> details = new ArrayList<>();
+        for (ProductSpu spu : spuList) {
+            List<ProductSku> skuRows = skusBySpu.getOrDefault(spu.getId(), List.of());
+            if (skuRows.isEmpty()) {
+                continue;
+            }
+            details.add(assemble(spu, skuRows, imagesBySpu.getOrDefault(spu.getId(), List.of()), stocks));
+        }
+        return details;
+    }
+
+    private ProductResponses.ProductDetail assemble(
+            ProductSpu spu,
+            List<ProductSku> skuRows,
+            List<ProductImage> imageRows,
+            Map<Long, Integer> stocks
+    ) {
+        List<ProductResponses.Image> images = imageRows.stream()
                 .map(image -> new ProductResponses.Image(
                         image.getUrl(),
                         image.getAltText(),
                         image.getSortOrder(),
                         image.getPrimaryImage()))
                 .toList();
-
-        Map<Long, Integer> stocks = productStockClient.getAvailableStocks(
-                skuRows.stream().map(ProductSku::getId).toList());
 
         List<ProductResponses.Sku> skus = skuRows.stream()
                 .map(sku -> new ProductResponses.Sku(
@@ -81,8 +138,8 @@ public class ProductDetailReader {
                 .mapToLong(ProductResponses.Sku::price)
                 .summaryStatistics();
 
-        return Optional.of(new ProductResponses.ProductDetail(
-                spuId.toString(),
+        return new ProductResponses.ProductDetail(
+                spu.getId().toString(),
                 spu.getMerchantId().toString(),
                 spu.getTitle(),
                 spu.getSubtitle(),
@@ -98,7 +155,7 @@ public class ProductDetailReader {
                 spu.getDescriptionHtml(),
                 images,
                 skus,
-                spu.getVersion()));
+                spu.getVersion());
     }
 
     private Map<String, String> readSpecs(ProductSku sku) {

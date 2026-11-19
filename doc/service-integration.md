@@ -245,6 +245,20 @@ message CloseOrderResponse {
 
 当前实现使用 `INSERT IGNORE + FOR UPDATE` 处理预扣单并发幂等，以排序合并明细的 SHA-256 作为请求指纹；库存行按 SKU 顺序锁定，所有条件更新、预扣明细和流水处于同一事务。Redis Lua 在事务提交后同步库存 Hash 与短期操作标记，缓存失败只降级不影响 MySQL 结果。超时任务按批次释放到期 `RESERVED` 单。
 
+#### 4.1.5 `InitStocks`（服务端已实现）
+
+调用方：`product-service`。用途：商品创建后为新 SKU 批量初始化 0 库存行，补齐商家库存调整的入口数据。
+
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `items` | repeated `InitStockItem` | 是 | 1–100 项，每项 `sku_id`、`merchant_id` 均为正数 |
+| 出参 | `created_sku_ids` | repeated string | 是 | 本次新建库存行的 SKU |
+| 出参 | `existing_sku_ids` | repeated string | 是 | 库存行已存在、本次跳过的 SKU |
+
+处理逻辑：校验数量与 ID → 逐项 `INSERT IGNORE` 创建 `total=available=reserved=0` 的库存行 → 已存在的 SKU 幂等跳过并归入 `existing_sku_ids` → 返回创建/跳过清单。可安全重放，不会覆盖已有库存。
+
+当前实现由 `createDraft` 在商品、SKU 和图片落库后调用；初始化失败会使商品创建事务整体回滚，不会留下无库存行的 SKU。
+
 ### 4.2 PaymentService
 
 #### 4.2.1 `CreatePayment`（本地模拟流程已实现，订单上下文与真实渠道待接入）

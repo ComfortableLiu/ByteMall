@@ -21,6 +21,9 @@ service StockService {
   // 订单取消或创建失败时回补预扣库存。
   // 校验释放原因 → 加锁查询预扣单 → 已释放则幂等返回 → 已确认则返回 FAILED_PRECONDITION → 增加 available、减少 reserved 并递增版本 → 保存释放原因和流水 → 返回释放结果。禁止 CONFIRMED → RELEASED。
   rpc ReleaseReservation (ReleaseReservationRequest) returns (ReleaseReservationResponse);
+
+  // 批量初始化SKU库存行（缺失则创建0库存记录），商品创建后补齐库存；幂等可重放。
+  rpc InitStocks (InitStocksRequest) returns (InitStocksResponse);
 }
 
 message AvailableStock {
@@ -97,4 +100,21 @@ message ReleaseReservationResponse{
   string status = 3;
   // 已回补明细
   repeated ReservationItem items = 4;
+}
+
+message InitStockItem{
+  uint64 sku_id = 1;
+  uint64 merchant_id = 2;
+}
+
+message InitStocksRequest{
+  // 1 到 100 个待初始化的SKU
+  repeated InitStockItem items = 1;
+}
+
+message InitStocksResponse{
+  // 本次新建库存行的SKU
+  repeated string created_sku_ids = 1;
+  // 库存行已存在、本次跳过的SKU
+  repeated string existing_sku_ids = 2;
 }

@@ -595,6 +595,27 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProductResponse' }
         '400': { $ref: '#/components/responses/ValidationError' }
+  /merchant/products/batch:
+    get:
+      tags: [Product]
+      operationId: batchGetMerchantProducts
+      summary: 批量查询商品详情
+      description: 一次请求返回多个商品完整详情，替代逐个 GET /merchant/products/{spuId}；不存在或不属于本商家的 ID 忽略。
+      parameters:
+        - name: spuIds
+          in: query
+          required: true
+          description: 逗号分隔的商品 ID，1 到 100 个
+          schema: { type: string }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 商品详情列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductDetailListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
   /merchant/products/images:
     post:
       tags: [Product]
@@ -1312,6 +1333,14 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/ProductDetail' }
+    ProductDetailListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ProductDetail' }
     ImageUploadResult:
       type: object
       required: [url]

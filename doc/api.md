@@ -129,10 +129,12 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | --- | --- | --- | --- | --- |
 | POST | `/merchants/applications` | BUYER | 201 `MerchantApplication` | 同一用户只允许一个待审核申请 |
 | GET | `/merchants/applications/current` | BUYER | 200 `MerchantApplication` | 无申请返回 `data: null` |
+| POST | `/merchants/applications/{applicationId}/approve` | 登录 | 200 `MerchantApplication` | 一键审核通过并开通店铺，重复审核幂等 |
+| POST | `/merchants/applications/{applicationId}/reject` | 登录 | 200 `MerchantApplication` | 一键驳回，`{reason}` 必填；重复驳回幂等 |
 | GET | `/merchant/shop` | MERCHANT | 200 `MerchantShop` | 当前商家店铺 |
 | PATCH | `/merchant/shop` | MERCHANT | 200 `MerchantShop` | 店铺名、Logo、联系信息；不修改审核状态 |
 
-入驻申请字段：`shopName`、`contactName`、`contactMobile`、`licenseNo`。审核接口属于平台运营后台，当前不开放给商家自行审核。
+入驻申请字段：`shopName`、`contactName`、`contactMobile`、`licenseNo`。审核为一键接口：通过后同事务创建商家店铺并回写 `reviewed_by`/`reviewed_at`，驳回必须写 `reason`；仅 `PENDING` 可审核，终态重复操作幂等返回。当前演示简化为任意登录账号可审核，生产环境须限制为平台运营角色。
 
 ## 4. product-service
 
@@ -156,6 +158,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | POST | `/merchant/products` | MERCHANT | 201 `ProductDetail` | 创建 SPU 和至少一个 SKU，默认 `DRAFT` |
 | POST | `/merchant/products/images` | MERCHANT | 201 `ImageUploadResult` | `multipart/form-data` 上传单张商品图片到阿里云 OSS |
 | GET | `/merchant/products/{spuId}` | MERCHANT | 200 `ProductDetail` | 可读取草稿/下架商品，但限本商家 |
+| GET | `/merchant/products/batch` | MERCHANT | 200 `ProductDetail[]` | 批量查询详情，`spuIds` 逗号分隔（1–100 个），一次请求替代逐个详情查询 |
 | PATCH | `/merchant/products/{spuId}` | MERCHANT | 200 `ProductDetail` | 携带 `version` 乐观锁；修改不影响订单快照 |
 | POST | `/merchant/products/{spuId}/status` | MERCHANT | 200 `ProductDetail` | `{status: ON_SALE|OFF_SALE, version}` |
 
@@ -276,7 +279,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 
 订单状态只能按状态机迁移；所有操作使用条件更新。客户端收到 409 后应重新查询，而不是循环提交。
 
-当前实现状态：`POST /orders` 已实现——幂等键查重与冲突检测、地址快照（`UserService.GetAddress`）、`ProductService.GetSkuBatch` 重新定价、整体库存预扣（失败自动回补）以及订单/明细/历史/幂等记录落库，同键同请求重放返回原订单。买家的列表、详情、取消、确认收货与商家 3 个接口及 `MerchantOrderService` 的持久化、状态机和事件逻辑尚未实现，有效请求仍返回 501。
+当前实现状态：`POST /orders` 已实现——幂等键查重与冲突检测、地址快照（`UserService.GetAddress`）、`ProductService.GetSkuBatch` 重新定价、整体库存预扣（失败自动回补）以及订单/明细/历史/幂等记录落库，同键同请求重放返回原订单。`GET /merchant/orders`（商家订单分页）已实现——商家归属校验（`UserService.ValidateMerchant`）、状态/关键词筛选（订单号、收件人、商品名）与创建时间倒序分页。买家的列表、详情、取消、确认收货与商家详情、发货接口尚未实现，有效请求仍返回 501。
 
 ## 8. stock-service
 

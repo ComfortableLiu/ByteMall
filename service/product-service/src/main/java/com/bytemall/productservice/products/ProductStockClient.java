@@ -1,6 +1,8 @@
 package com.bytemall.productservice.products;
 
 import com.bytemall.stock.proto.GetAvailableStocksRequest;
+import com.bytemall.stock.proto.InitStockItem;
+import com.bytemall.stock.proto.InitStocksRequest;
 import com.bytemall.stock.proto.StockServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -48,6 +50,25 @@ public class ProductStockClient {
                     stocks.put(Long.parseLong(item.getSkuId()), item.getAvailableStock()));// 把字符串 ID 转回 Long，并存入可售数量。
         }
         return stocks;
+    }
+
+    /** 商品创建后批量初始化0库存行；失败向上抛出，由调用方事务决定是否回滚商品。 */
+    public void initStocks(List<Item> items) {
+        if (items.isEmpty()) {
+            return;
+        }
+        InitStocksRequest.Builder request = InitStocksRequest.newBuilder();
+        for (Item item : items) {
+            request.addItems(InitStockItem.newBuilder()
+                    .setSkuId(item.skuId())
+                    .setMerchantId(item.merchantId())
+                    .build());
+        }
+        stub.withDeadlineAfter(2, TimeUnit.SECONDS).initStocks(request.build());
+    }
+
+    /** 待初始化的SKU及其归属商家。 */
+    public record Item(long skuId, long merchantId) {
     }
 
     @PreDestroy// Spring 销毁这个 Bean 前会调用下面的方法。

@@ -1,6 +1,7 @@
 package com.bytemall.common.auth;
 
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -9,6 +10,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,17 +40,25 @@ import java.util.List;
 @ConditionalOnClass(SecurityFilterChain.class)
 @ConditionalOnMissingBean(SecurityFilterChain.class)
 @EnableConfigurationProperties(JwtSecurityProperties.class)
+@Slf4j
 public class JwtSecurityAutoConfiguration {
 
     @Bean(name = "jwtKeyPair")
     @ConditionalOnMissingBean(name = "jwtKeyPair")
     public KeyPair jwtKeyPair(
             @Value("${jwt.rsa.private-key:${JWT_RSA_PRIVATE_KEY:}}") String privateKeyPem,
-            @Value("${jwt.rsa.public-key:${JWT_RSA_PUBLIC_KEY:}}") String publicKeyPem
+            @Value("${jwt.rsa.public-key:${JWT_RSA_PUBLIC_KEY:}}") String publicKeyPem,
+            Environment environment
     ) throws Exception {
         if (privateKeyPem.isBlank() && publicKeyPem.isBlank()) {
-            throw new IllegalStateException(
-                    "请配置jwt.rsa.public-key/JWT_RSA_PUBLIC_KEY，或使用start-all.sh生成共享开发密钥");
+            // 未配置密钥时回退到内置开发密钥；生产环境必须显式配置，禁止回退。
+            if (environment.acceptsProfiles(Profiles.of("prod"))) {
+                throw new IllegalStateException(
+                        "生产环境必须配置jwt.rsa.public-key/JWT_RSA_PUBLIC_KEY，禁止使用内置开发密钥");
+            }
+            log.warn("未配置JWT密钥，回退到内置开发密钥（仅限本地开发，禁止用于生产）");
+            privateKeyPem = DevJwtKeys.PRIVATE_KEY_PEM;
+            publicKeyPem = DevJwtKeys.PUBLIC_KEY_PEM;
         }
 
         PrivateKey privateKey = privateKeyPem.isBlank() ? null : parsePrivateKey(privateKeyPem);

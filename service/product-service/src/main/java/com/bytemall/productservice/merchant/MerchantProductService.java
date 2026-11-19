@@ -10,6 +10,7 @@ import com.bytemall.productservice.mapper.ProductImageMapper;
 import com.bytemall.productservice.mapper.ProductSkuMapper;
 import com.bytemall.productservice.mapper.ProductSpuMapper;
 import com.bytemall.productservice.products.ProductResponses;
+import com.bytemall.productservice.products.ProductStockClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +34,7 @@ public class MerchantProductService {
 
     private final ProductDetailReader productDetailReader;
     private final ProductListReader productListReader;
+    private final ProductStockClient productStockClient;
 
     //1. @Transactional 给这个方法划出事务边界。后面把 SKU 和图片写入也加进来，就可以一起提交、一起回滚。
     @Transactional
@@ -53,6 +56,7 @@ public class MerchantProductService {
         spu.setVersion(0L);
         // insert(spu) 才会执行数据库写入。`insert` 的返回值是影响行数，商品 ID 要从 spu.getId() 取。
         productSpuMapper.insert(spu);
+        List<ProductStockClient.Item> newSkuItems = new ArrayList<>();
         for (CreateProductRequest.SkuRequest input : request.skus()) {
             Map<String, String> sortedSpecs = new TreeMap<>();
             if (input.specs() != null) {
@@ -76,6 +80,7 @@ public class MerchantProductService {
             sku.setEnabled(input.enabled() == null ? true : input.enabled());
 
             productSkuMapper.insert(sku);
+            newSkuItems.add(new ProductStockClient.Item(sku.getId(), merchantId));
         }
         if (request.images() != null) {
             for (CreateProductRequest.ImageRequest input : request.images()) {
@@ -89,6 +94,8 @@ public class MerchantProductService {
                 productImageMapper.insert(image);
             }
         }
+        // 新SKU批量初始化0库存行，失败抛出异常使本事务回滚，不留无库存的商品。
+        productStockClient.initStocks(newSkuItems);
         return spu.getId();
     }
 
@@ -125,6 +132,28 @@ public class MerchantProductService {
         }
 
         return productDetailReader.read(spu, ProductDetailReader.SkuScope.ALL);
+    }
+
+    /** 批量查询本商家指定SPU的完整详情；不存在或不属于本商家的ID自动忽略，结果按请求顺序返回。 */
+    public List<ProductResponses.ProductDetail> getMerchantProductDetails(Long merchantId, List<Long> spuIds) {
+        if (spuIds == null || spuIds.isEmpty()) {
+            throw new IllegalArgumentException("spuIds不能为空");
+        }
+        if (spuIds.size() > 100) {
+            throw new IllegalArgumentException("单次最多批量查询100个商品");
+        }
+        List<Long> orderedIds = spuIds.stream().distinct().toList();
+        Map<Long, ProductSpu> spusById = productSpuMapper
+                .selectList(Wrappers.<ProductSpu>lambdaQuery()
+                        .in(ProductSpu::getId, orderedIds)
+                        .eq(ProductSpu::getMerchantId, merchantId))
+                .stream()
+                .collect(Collectors.toMap(ProductSpu::getId, spu -> spu));
+        List<ProductSpu> orderedSpus = orderedIds.stream()
+                .map(spusById::get)
+                .filter(Objects::nonNull)
+                .toList();
+        return productDetailReader.readBatch(orderedSpus, ProductDetailReader.SkuScope.ALL);
     }
 
 }

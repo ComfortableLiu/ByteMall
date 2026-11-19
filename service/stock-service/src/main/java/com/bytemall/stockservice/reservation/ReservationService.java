@@ -38,7 +38,8 @@ import java.util.TreeMap;
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
-    private static final int MAX_RESERVATION_NO_LENGTH = 64;
+    // stock_reservation/stock_log 的 reservation_no 均为 varchar(32)，校验上限与列宽一致。
+    private static final int MAX_RESERVATION_NO_LENGTH = 32;
     private static final int MAX_ORDER_NO_LENGTH = 64;
     private static final int MAX_REASON_LENGTH = 255;
 

@@ -157,14 +157,17 @@ export class RemoteAdapter {
   }
 
   private async loadPrivateData(): Promise<void> {
-    const [cart, addresses, orders] = await Promise.all([
+    const [cart, addresses, orders, application] = await Promise.all([
       this.request<Cart>('/cart'),
       this.request<Address[]>('/users/me/addresses'),
       this.request<PageResult<Order>>('/orders', { query: { page: 1, size: 100 } }),
+      this.request<MerchantApplication | null>('/merchants/applications/current'),
     ])
     this.syncCart(cart)
     this.state.addresses = addresses
     this.state.orders = orders.items
+    // 二次进入入驻页要能展示已有申请，登录/刷新时重新拉取当前申请。
+    this.state.applications = application ? [application] : []
     if (this.state.currentUser?.merchantId && this.state.currentUser.merchantId !== '-1') {
       const [shop] = await Promise.all([
         this.request<MerchantShop>('/merchant/shop'),
@@ -407,13 +410,45 @@ export class RemoteAdapter {
 
   async submitMerchantApplication(input: Omit<MerchantApplication, 'applicationId' | 'userId' | 'status' | 'createdAt'>): Promise<MerchantApplication> {
     const application = await this.request<MerchantApplication>('/merchants/applications', { method: 'POST', body: input })
-    this.state.applications = [application, ...this.state.applications.filter((item) => item.applicationId !== application.applicationId)]
+    this.syncApplication(application)
     return application
+  }
+
+  async approveMerchantApplication(applicationId: string): Promise<MerchantApplication> {
+    const application = await this.request<MerchantApplication>(
+      `/merchants/applications/${encodeURIComponent(applicationId)}/approve`,
+      { method: 'POST' },
+    )
+    this.syncApplication(application)
+    // 通过后申请人立即具备商家身份，刷新身份与商家数据使工作台可用。
+    this.state.currentUser = await this.request<User>('/users/me')
+    if (String(application.userId) === String(this.state.currentUser.userId)) {
+      await this.loadPrivateData()
+    }
+    return application
+  }
+
+  async rejectMerchantApplication(applicationId: string, reason: string): Promise<MerchantApplication> {
+    const application = await this.request<MerchantApplication>(
+      `/merchants/applications/${encodeURIComponent(applicationId)}/reject`,
+      { method: 'POST', body: { reason } },
+    )
+    this.syncApplication(application)
+    return application
+  }
+
+  private syncApplication(application: MerchantApplication): void {
+    this.state.applications = [application, ...this.state.applications.filter((item) => item.applicationId !== application.applicationId)]
   }
 
   async listMerchantProducts(): Promise<ProductDetail[]> {
     const result = await this.request<PageResult<ProductSummary>>('/merchant/products', { query: { page: 1, size: 100 } })
-    return Promise.all(result.items.map((item) => this.getMerchantProduct(item.spuId)))
+    if (result.items.length === 0) return []
+    // 批量补全商品详情，一次请求替代逐个GET /merchant/products/{spuId}。
+    const spuIds = result.items.map((item) => item.spuId).join(',')
+    const details = await this.request<ProductDetail[]>('/merchant/products/batch', { query: { spuIds } })
+    this.syncProducts(details)
+    return details
   }
 
   async getMerchantProduct(spuId: string): Promise<ProductDetail> {

@@ -38,6 +38,8 @@ function buildActions(api: AppAdapter, invoke: Invoke) {
     deleteAddress: (addressId: string) => invoke(() => api.deleteAddress(addressId)),
     setDefaultAddress: (addressId: string) => invoke(() => api.setDefaultAddress(addressId)),
     submitMerchantApplication: (...args: Parameters<MockAdapter['submitMerchantApplication']>) => invoke(() => api.submitMerchantApplication(...args)),
+    approveMerchantApplication: (...args: Parameters<MockAdapter['approveMerchantApplication']>) => invoke(() => api.approveMerchantApplication(...args)),
+    rejectMerchantApplication: (...args: Parameters<MockAdapter['rejectMerchantApplication']>) => invoke(() => api.rejectMerchantApplication(...args)),
     listMerchantProducts: () => invoke(() => api.listMerchantProducts()),
     getMerchantProduct: (spuId: string) => invoke(() => api.getMerchantProduct(spuId)),
     saveProduct: (...args: Parameters<MockAdapter['saveProduct']>) => invoke(() => api.saveProduct(...args)),

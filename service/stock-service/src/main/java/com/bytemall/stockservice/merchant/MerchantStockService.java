@@ -74,7 +74,9 @@ public class MerchantStockService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "库存状态已变化，请刷新后重试");
         }
 
-        String adjustmentNo = "ADJUST-" + UUID.randomUUID();
+        // stock_log.reservation_no 为 varchar(32)，占位流水号必须压缩到列宽以内。
+        String adjustmentNo = "ADJUST-"
+                + UUID.randomUUID().toString().replace("-", "").substring(0, 25);
         StockLog stockLog = new StockLog();
         stockLog.setSkuId(skuId);
         stockLog.setReservationNo(adjustmentNo);
