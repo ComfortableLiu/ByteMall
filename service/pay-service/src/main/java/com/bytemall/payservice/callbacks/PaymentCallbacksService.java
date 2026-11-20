@@ -80,13 +80,17 @@ public class PaymentCallbacksService {
         return "success";
     }
 
-    /** 校验当前 MOCK 报文的必填字段和状态范围。 */
+    /** 校验当前 MOCK 报文的必填字段、长度和状态范围。 */
     private void validateNotification(PaymentCallbackRequests.PaymentNotification notification) {
         if (notification == null
                 || notification.notifyId() == null || notification.notifyId().isBlank()
                 || notification.orderNo() == null || notification.orderNo().isBlank()
                 || notification.amount() == null || notification.amount() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "回调通知参数不完整或金额非法");
+        }
+        // notify_id 落库列宽128，超长会截断报错，入口直接拒绝。
+        if (notification.notifyId().length() > 128) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "notifyId长度不能超过128个字符");
         }
         if (!"SUCCESS".equals(notification.status()) && !"FAILED".equals(notification.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "回调状态仅支持SUCCESS或FAILED");

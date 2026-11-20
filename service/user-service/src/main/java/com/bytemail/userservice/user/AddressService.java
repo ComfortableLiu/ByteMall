@@ -137,8 +137,8 @@ public class AddressService {
                 address.getDetailAddress(),
                 address.getPostalCode(),
                 address.getIsDefault(),
-                address.getId(),
-                address.getUserId()
+                String.valueOf(address.getId()),
+                String.valueOf(address.getUserId())
         );
     }
 }

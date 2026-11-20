@@ -35,7 +35,7 @@ public class UserService {
         }
         Merchant merchant = merchantMapper.selectOne(new QueryWrapper<Merchant>().eq("owner_user_id", userId));
         return new UserResponse.User(
-                userAccount.getId(),
+                String.valueOf(userAccount.getId()),
                 userAccount.getNickname(),
                 userAccount.getAvatarUrl(),
                 merchant == null ? "-1" : String.valueOf(merchant.getId())
@@ -59,7 +59,7 @@ public class UserService {
         userAccount.setNickname(user.nickname());
         userAccountMapper.updateById(userAccount);
         return new UserResponse.User(
-                userAccount.getId(),
+                String.valueOf(userAccount.getId()),
                 userAccount.getNickname(),
                 userAccount.getAvatarUrl(),
                 merchant == null ? "-1" : String.valueOf(merchant.getId())

@@ -37,15 +37,15 @@ public class PaymentCloseClient {
     }
 
     /**
-     * 关闭订单的待支付支付单；重复关闭在支付侧幂等。
-     * 失败只记录日志：订单取消是事实来源，遗留的待支付单由对账兜底。
+     * 关闭订单的待支付支付单；reason 为 pay-service 认可的关闭原因（如 ORDER_CANCELLED、PAYMENT_TIMEOUT）。
+     * 重复关闭在支付侧幂等。失败只记录日志：订单状态是事实来源，遗留的待支付单由对账兜底。
      */
-    public void closeQuietly(String orderNo) {
+    public void closeQuietly(String orderNo, String reason) {
         try {
             CloseOrderResponse response = stub.withDeadlineAfter(RPC_DEADLINE_SECONDS, TimeUnit.SECONDS)
                     .closeOrder(CloseOrderRequest.newBuilder()
                             .setOrderNo(orderNo)
-                            .setReason("ORDER_CANCELLED")
+                            .setReason(reason)
                             .build());
             log.info("订单{}的支付单已关闭: {}", orderNo, response.getPayNo());
         } catch (StatusRuntimeException exception) {

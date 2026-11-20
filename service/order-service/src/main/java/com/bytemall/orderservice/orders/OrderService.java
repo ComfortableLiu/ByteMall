@@ -466,8 +466,39 @@ public class OrderService {
 
         // 补偿动作放在事务提交后：失败不影响取消结果，预扣由超时任务兜底释放。
         stockReservationClient.releaseQuietly("RSV-" + orderNo, "USER");
-        paymentCloseClient.closeQuietly(orderNo);
+        paymentCloseClient.closeQuietly(orderNo, "ORDER_CANCELLED");
         return loadOrder(orderNo);
+    }
+
+    /**
+     * 支付超时自动关单：条件更新为已取消并记录SYSTEM历史，随后回补预扣、关闭待支付支付单。
+     * 状态已被其他流程改掉时静默返回，供调度器幂等重放。
+     */
+    public void expireOverdueOrder(String orderNo) {
+        OrderMain order = orderMainMapper.selectOne(new QueryWrapper<OrderMain>().eq("order_no", orderNo));
+        if (order == null || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            return;
+        }
+        LocalDateTime cancelledAt = LocalDateTime.now(ZoneOffset.UTC);
+        boolean cancelled = Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+            if (orderMainMapper.cancelPending(orderNo, "支付超时", cancelledAt) != 1) {
+                return false;
+            }
+            OrderStatusHistory history = new OrderStatusHistory();
+            history.setOrderId(order.getId());
+            history.setFromStatus(OrderStatus.PENDING_PAYMENT.name());
+            history.setToStatus(OrderStatus.CANCELLED.name());
+            history.setOperatorType(OrderResponses.OperatorType.SYSTEM.name());
+            history.setReason("支付超时，自动关单");
+            history.setCreatedAt(cancelledAt);
+            orderStatusHistoryMapper.insert(history);
+            return true;
+        }));
+        if (!cancelled) {
+            return;
+        }
+        stockReservationClient.releaseQuietly("RSV-" + orderNo, "TIMEOUT");
+        paymentCloseClient.closeQuietly(orderNo, "PAYMENT_TIMEOUT");
     }
 
     /**
