@@ -7,23 +7,32 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.List;
 
+/** 商品变更索引同步：从商品服务拉取读模型后写入ES，商品已删除时清理索引条目。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductIndexSyncService {
 
     private final ElasticsearchClient elasticsearchClient;
+    private final ProductIndexClient productIndexClient;
 
     public void synchronizeBySpuId(String spuId) throws IOException {
-        List<ProductIndexDocument> documents = null;
-        // TODO 这里去查一下商品服务
-        if (documents.isEmpty()) {
-            throw new IllegalArgumentException("商品不存在，spuId=" + spuId);
+        ProductIndexDocument document = productIndexClient.getIndexDocument(spuId);
+        if (document == null) {
+            // 商品已不存在时删除索引条目，避免搜索继续命中幽灵商品；删除失败只告警不阻断。
+            log.warn("商品{}不存在，清理对应索引条目", spuId);
+            try {
+                elasticsearchClient.delete(index -> index
+                        .index(ProductIndexService.INDEX)
+                        .id(spuId)
+                        .refresh(Refresh.WaitFor));
+            } catch (Exception exception) {
+                log.warn("删除索引条目失败，spuId={}", spuId, exception);
+            }
+            return;
         }
 
-        ProductIndexDocument document = documents.get(0);
         elasticsearchClient.index(index -> index
                 .index(ProductIndexService.INDEX)
                 .id(document.spuId())

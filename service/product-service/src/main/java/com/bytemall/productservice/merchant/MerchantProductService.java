@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -54,6 +55,9 @@ public class MerchantProductService {
         spu.setDescriptionHtml(request.descriptionHtml());
         spu.setStatus("DRAFT");
         spu.setVersion(0L);
+        // created_at/updated_at 为NOT NULL列，必须显式赋值。
+        spu.setCreatedAt(LocalDateTime.now());
+        spu.setUpdatedAt(LocalDateTime.now());
         // insert(spu) 才会执行数据库写入。`insert` 的返回值是影响行数，商品 ID 要从 spu.getId() 取。
         productSpuMapper.insert(spu);
         List<ProductStockClient.Item> newSkuItems = new ArrayList<>();

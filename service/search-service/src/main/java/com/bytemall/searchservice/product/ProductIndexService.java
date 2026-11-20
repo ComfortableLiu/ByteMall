@@ -12,7 +12,6 @@ import java.io.IOException;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-// TODO 索引服务，但是目前没有部署ES，所以只是先写出来
 public class ProductIndexService {
 
     public static final String INDEX = "product-search-v1";

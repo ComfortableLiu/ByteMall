@@ -11,6 +11,38 @@ service ProductService {
   rpc GetSkuBriefs (GetSkuBriefsRequest) returns (GetSkuBriefsResponse);
   // 批量查询下单所需的 SKU 完整快照（含现价），不按上下架状态过滤。
   rpc GetSkuBatch (GetSkuBatchRequest) returns (GetSkuBatchResponse);
+  // 商品变更后获取完整搜索索引读模型；商品不存在返回空document。
+  rpc GetIndexDocument (GetIndexDocumentRequest) returns (GetIndexDocumentResponse);
+}
+
+message GetIndexDocumentRequest {
+  string spu_id = 1;
+}
+
+message GetIndexDocumentResponse {
+  ProductIndexDocument document = 1;
+}
+
+message ProductIndexDocument {
+  string spu_id = 1;
+  string merchant_id = 2;
+  string category_id = 3;
+  string brand = 4;
+  string cover_image = 5;
+  string title = 6;
+  string subtitle = 7;
+  // 描述HTML去除标签后的纯文本
+  string description_text = 8;
+  // 启用SKU的最低/最高价，单位分
+  int64 min_price = 9;
+  int64 max_price = 10;
+  int64 sales_count = 11;
+  // DRAFT、ON_SALE、OFF_SALE，不做过滤
+  string status = 12;
+  // ISO 8601 UTC
+  string published_at = 13;
+  string updated_at = 14;
+  int64 version = 15;
 }
 
 message GetSkuBatchRequest {

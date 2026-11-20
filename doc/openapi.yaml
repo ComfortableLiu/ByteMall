@@ -369,10 +369,8 @@ paths:
                         type: array
                         maxItems: 10
                         items:
-                          type: object
-                          required: [text]
-                          properties:
-                            text: { type: string }
+                          type: string
+                          description: 建议展示的搜索关键词
   /cart:
     get:
       tags: [Cart]
