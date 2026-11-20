@@ -111,4 +111,66 @@ public class MerchantProductController {
     }
 
 
+
+    @PostMapping("/{spuId}/status")
+    public  ResponseEntity<?> updateMerchantProductStatus(
+            @PathVariable("spuId") Long rawSpuId,
+            @Valid @RequestBody UpdateProductStatusRequest request
+//            Authentication authentication
+
+    ){
+//        if (authentication == null || !authentication.isAuthenticated()) {
+//            return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "请先登录");
+//        }
+//
+//        boolean merchantRole = authentication.getAuthorities().stream()
+//                .anyMatch(authority -> "ROLE_MERCHANT".equals(authority.getAuthority()));
+//        if (!merchantRole
+//                || !(authentication.getPrincipal() instanceof MerchantPrincipal merchant)) {
+//            return error(HttpStatus.FORBIDDEN, "FORBIDDEN", "仅商家可修改商品状态");
+//        }
+        long spuId;
+        var product = merchantProductService.updateProductStatus(
+                1L, rawSpuId, request);
+        if (product.isEmpty()) {
+            return error(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "商品不存在");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(product.get()));
+
+    }
+
+
+
+    @PatchMapping("/{spuId}")
+    public ResponseEntity<?> updateMerchantProduct(
+            @PathVariable("spuId") String rawSpuId,
+            @Valid @RequestBody UpdateProductRequest request
+//            Authentication authentication
+    ){
+//        if (authentication == null || !authentication.isAuthenticated()) {
+//            return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "请先登录");
+//        }
+//
+//        boolean merchantRole = authentication.getAuthorities().stream()
+//                .anyMatch(authority -> "ROLE_MERCHANT".equals(authority.getAuthority()));
+//        if (!merchantRole
+//                || !(authentication.getPrincipal() instanceof MerchantPrincipal merchant)) {
+//            return error(HttpStatus.FORBIDDEN, "FORBIDDEN", "仅商家可编辑商品");
+//        }
+        long spuId = Long.parseLong(rawSpuId);
+        if (spuId <= 0) {
+            return error(HttpStatus.BAD_REQUEST, "INVALID_SPU_ID", "商品 ID 必须是正整数");
+        }
+
+        var product = merchantProductService.updateProduct(
+                1L, spuId, request);
+        if (product.isEmpty()) {
+            return error(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "商品不存在");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(product.get()));
+    }
+
+
+
+
 }
