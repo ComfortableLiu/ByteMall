@@ -34,6 +34,8 @@ type RequestOptions = {
   formData?: FormData
   query?: Record<string, string | number | boolean | undefined>
   idempotencyKey?: string
+  /** 内部标记：该请求不再触发静默续期，防止刷新链路循环重试。 */
+  retryOnAuthError?: boolean
 }
 
 type AuthResult = {
@@ -66,6 +68,8 @@ export class RemoteAdapter {
   readonly loadWarning = ''
   private state: AppState = emptyState()
   private accessToken = ''
+  private refreshToken = ''
+  private refreshInFlight: Promise<boolean> | null = null
   private sessionGeneration = 0
   private readonly baseUrl?: string
 
@@ -73,8 +77,10 @@ export class RemoteAdapter {
     this.baseUrl = baseUrl
     try {
       this.accessToken = sessionStorage.getItem('bytemall-dev-access-token') ?? ''
+      this.refreshToken = sessionStorage.getItem('bytemall-dev-refresh-token') ?? ''
     } catch {
       this.accessToken = ''
+      this.refreshToken = ''
     }
   }
 
@@ -115,7 +121,11 @@ export class RemoteAdapter {
       if (!response.ok) {
         const message = payload?.message ?? (text || `线上请求失败（${response.status}）`)
         if (message === '访问令牌无效或已过期') {
-          // 只清理本地会话并通知 store，不能调用 logout 或刷新 Token 形成循环。
+          // access token 过期是常态：先用 refresh token 静默续期并重放原请求，成功则用户无感。
+          if (options.retryOnAuthError !== false && (await this.tryRefresh())) {
+            return this.request<T>(path, { ...options, retryOnAuthError: false })
+          }
+          // 续期失败才是真过期：只清理本地会话并通知 store，不能调用 logout 形成循环。
           this.clearLocalSession()
           globalThis.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
         }
@@ -127,6 +137,40 @@ export class RemoteAdapter {
       if (error instanceof DomainError) throw error
       if (error instanceof SyntaxError) throw new DomainError('INVALID_API_RESPONSE', '线上服务返回了无法解析的响应', 502)
       throw new DomainError('NETWORK_ERROR', '无法连接线上 API，请检查地址、网络和 CORS 配置', 503)
+    }
+  }
+
+  /** 多个请求同时401时合并为一次刷新，避免并发重复调用 /auth/refresh。 */
+  private tryRefresh(): Promise<boolean> {
+    if (!this.refreshToken) return Promise.resolve(false)
+    this.refreshInFlight ??= this.performRefresh().finally(() => {
+      this.refreshInFlight = null
+    })
+    return this.refreshInFlight
+  }
+
+  private async performRefresh(): Promise<boolean> {
+    try {
+      const result = await this.request<AuthResult>('/auth/refresh', {
+        method: 'POST',
+        body: { refreshToken: this.refreshToken },
+        retryOnAuthError: false,
+      })
+      this.storeTokens(result)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private storeTokens(result: AuthResult): void {
+    this.accessToken = result.accessToken
+    this.refreshToken = result.refreshToken ?? ''
+    try {
+      sessionStorage.setItem('bytemall-dev-access-token', result.accessToken)
+      if (this.refreshToken) sessionStorage.setItem('bytemall-dev-refresh-token', this.refreshToken)
+    } catch {
+      // sessionStorage 不可用时仅保留内存态。
     }
   }
 
@@ -206,12 +250,7 @@ export class RemoteAdapter {
     if (role === 'merchant' && (!result.user.merchantId || result.user.merchantId === '-1')) {
       throw new DomainError('MERCHANT_REQUIRED', '该账号没有商家权限', 403)
     }
-    this.accessToken = result.accessToken
-    try {
-      sessionStorage.setItem('bytemall-dev-access-token', result.accessToken)
-    } catch {
-      this.accessToken = result.accessToken
-    }
+    this.storeTokens(result)
     this.state.currentUser = result.user
     await this.loadPrivateData()
     return structuredClone(result.user)
@@ -221,8 +260,10 @@ export class RemoteAdapter {
     // 单调递增代际，使清理前已经发出的请求在响应时被丢弃。
     this.sessionGeneration += 1
     this.accessToken = ''
+    this.refreshToken = ''
     try {
       sessionStorage.removeItem('bytemall-dev-access-token')
+      sessionStorage.removeItem('bytemall-dev-refresh-token')
     } catch {
       this.accessToken = ''
     }

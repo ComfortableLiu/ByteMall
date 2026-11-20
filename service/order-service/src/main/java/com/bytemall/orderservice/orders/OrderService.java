@@ -15,11 +15,13 @@ import com.bytemall.orderservice.mapper.OrderStatusHistoryMapper;
 import com.bytemall.product.proto.ProductSkuInfo;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -37,9 +39,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class OrderService {
 
     private static final DateTimeFormatter ORDER_NO_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -56,30 +60,6 @@ public class OrderService {
     private final OrderResponseAssembler orderResponseAssembler;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
-
-    public OrderService(
-            OrderMainMapper orderMainMapper,
-            OrderItemMapper orderItemMapper,
-            OrderStatusHistoryMapper orderStatusHistoryMapper,
-            OrderIdempotencyMapper orderIdempotencyMapper,
-            UserAddressClient userAddressClient,
-            ProductSkuClient productSkuClient,
-            StockReservationClient stockReservationClient,
-            OrderResponseAssembler orderResponseAssembler,
-            ObjectMapper objectMapper,
-            PlatformTransactionManager transactionManager
-    ) {
-        this.orderMainMapper = orderMainMapper;
-        this.orderItemMapper = orderItemMapper;
-        this.orderStatusHistoryMapper = orderStatusHistoryMapper;
-        this.orderIdempotencyMapper = orderIdempotencyMapper;
-        this.userAddressClient = userAddressClient;
-        this.productSkuClient = productSkuClient;
-        this.stockReservationClient = stockReservationClient;
-        this.orderResponseAssembler = orderResponseAssembler;
-        this.objectMapper = objectMapper;
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
-    }
 
     /**
      * 重新定价、整体预扣库存并创建待支付订单。
@@ -129,7 +109,9 @@ public class OrderService {
         }
     }
 
-    /** 同一事务写入订单、明细、创建历史和幂等记录，并把首次响应快照写回幂等记录。 */
+    /**
+     * 同一事务写入订单、明细、创建历史和幂等记录，并把首次响应快照写回幂等记录。
+     */
     private OrderResponses.Order persistOrder(
             Long userId,
             String idempotencyKey,
@@ -217,7 +199,9 @@ public class OrderService {
         return order;
     }
 
-    /** 幂等键重复但指纹一致时返回已有订单；指纹不一致说明同键复用于不同请求。 */
+    /**
+     * 幂等键重复但指纹一致时返回已有订单；指纹不一致说明同键复用于不同请求。
+     */
     private OrderResponses.Order replayPrevious(OrderIdempotency previous, String requestHash) {
         if (!requestHash.equals(previous.getRequestHash())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "相同幂等键不能用于不同的订单内容");
@@ -229,7 +213,9 @@ public class OrderService {
         return existing;
     }
 
-    /** 并发同键提交后读取抢先方的幂等记录；读到按重放处理，读不到按处理中冲突返回。 */
+    /**
+     * 并发同键提交后读取抢先方的幂等记录；读到按重放处理，读不到按处理中冲突返回。
+     */
     private OrderResponses.Order replayConcurrent(Long userId, String idempotencyKey, String requestHash) {
         OrderIdempotency winner = orderIdempotencyMapper.selectOne(new QueryWrapper<OrderIdempotency>()
                 .eq("user_id", userId)
@@ -240,7 +226,9 @@ public class OrderService {
         return replayPrevious(winner, requestHash);
     }
 
-    /** 按订单号从库里重建完整订单响应（主表+明细+历史），用于幂等重放；不存在返回null。 */
+    /**
+     * 按订单号从库里重建完整订单响应（主表+明细+历史），用于幂等重放；不存在返回null。
+     */
     private OrderResponses.Order loadOrder(String orderNo) {
         OrderMain orderMain = orderMainMapper.selectOne(
                 new QueryWrapper<OrderMain>().eq("order_no", orderNo));
@@ -254,7 +242,9 @@ public class OrderService {
         return orderResponseAssembler.toOrder(orderMain, items, history);
     }
 
-    /** 把合并后的SKU数量与商品快照组装成订单明细行，并校验可售状态与单商家约束。 */
+    /**
+     * 把合并后的SKU数量与商品快照组装成订单明细行，并校验可售状态与单商家约束。
+     */
     private List<OrderLine> assembleLines(Map<Long, Integer> mergedItems, Map<String, ProductSkuInfo> skuInfos) {
         List<OrderLine> lines = new ArrayList<>();
         // 当前版本一个订单只属于一个商家，多商家需由调用方拆单。
@@ -287,7 +277,9 @@ public class OrderService {
         return lines;
     }
 
-    /** 合并重复SKU的数量并校验数量范围（1–999），SKU ID统一解析为正整数。 */
+    /**
+     * 合并重复SKU的数量并校验数量范围（1–999），SKU ID统一解析为正整数。
+     */
     private Map<Long, Integer> mergeItems(List<OrderRequests.CreateOrderItem> items) {
         Map<Long, Integer> merged = new LinkedHashMap<>();
         for (OrderRequests.CreateOrderItem item : items) {
@@ -301,7 +293,9 @@ public class OrderService {
         return merged;
     }
 
-    /** 把字符串ID解析为正整数，非数字或越界按400拒绝。 */
+    /**
+     * 把字符串ID解析为正整数，非数字或越界按400拒绝。
+     */
     private static long parsePositiveId(String value, String field) {
         if (value == null || !value.matches("\\d{1,19}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + "必须为正整数");
@@ -317,7 +311,9 @@ public class OrderService {
         }
     }
 
-    /** 计算请求体的SHA-256指纹（十六进制），用于同幂等键不同请求的冲突检测。 */
+    /**
+     * 计算请求体的SHA-256指纹（十六进制），用于同幂等键不同请求的冲突检测。
+     */
     private String fingerprint(OrderRequests.CreateOrder request) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -328,7 +324,9 @@ public class OrderService {
         }
     }
 
-    /** 把对象序列化为JSON字符串，失败按500拒绝。 */
+    /**
+     * 把对象序列化为JSON字符串，失败按500拒绝。
+     */
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -338,14 +336,18 @@ public class OrderService {
         }
     }
 
-    /** 生成「BM+UTC日期+12位随机」订单号，唯一性由 uk_order_no 兜底。 */
+    /**
+     * 生成「BM+UTC日期+12位随机」订单号，唯一性由 uk_order_no 兜底。
+     */
     private static String generateOrderNo() {
         return "BM"
                 + LocalDate.now(ZoneOffset.UTC).format(ORDER_NO_DATE)
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 
-    /** 下单校验后的明细行：价格取商品服务现价，不接受客户端价格。 */
+    /**
+     * 下单校验后的明细行：价格取商品服务现价，不接受客户端价格。
+     */
     private record OrderLine(
             long spuId,
             long skuId,
@@ -358,25 +360,68 @@ public class OrderService {
     ) {
     }
 
-    /** 按当前买家和状态分页查询订单，创建时间倒序。尚未实现。 */
+    /** 按当前买家和状态分页查询订单，创建时间倒序；明细和历史按页批量装配。 */
     public OrderResponses.OrderPage list(Long userId, OrderStatus status, int page, int size) {
-        // TODO 按当前买家和状态查询订单，并按创建时间倒序分页。
-        return new OrderResponses.OrderPage(page, size, 0, new ArrayList<>());
+        long total = orderMainMapper.selectCount(buildListQuery(userId, status));
+        if (total == 0) {
+            return new OrderResponses.OrderPage(page, size, 0, List.of());
+        }
+
+        long offset = (long) (page - 1) * size;
+        List<OrderMain> orders = offset >= total
+                ? List.of()
+                : orderMainMapper.selectList(buildListQuery(userId, status)
+                        .orderByDesc("created_at", "id")
+                        .last("LIMIT " + size + " OFFSET " + offset));
+        if (orders.isEmpty()) {
+            return new OrderResponses.OrderPage(page, size, total, List.of());
+        }
+
+        List<Long> orderIds = orders.stream().map(OrderMain::getId).toList();
+        Map<Long, List<OrderItem>> itemsByOrder = orderItemMapper
+                .selectList(new QueryWrapper<OrderItem>().in("order_id", orderIds).orderByAsc("id"))
+                .stream()
+                .collect(Collectors.groupingBy(OrderItem::getOrderId));
+        Map<Long, List<OrderStatusHistory>> historyByOrder = orderStatusHistoryMapper
+                .selectList(new QueryWrapper<OrderStatusHistory>().in("order_id", orderIds).orderByAsc("id"))
+                .stream()
+                .collect(Collectors.groupingBy(OrderStatusHistory::getOrderId));
+
+        List<OrderResponses.Order> items = orders.stream()
+                .map(order -> orderResponseAssembler.toOrder(
+                        order,
+                        itemsByOrder.getOrDefault(order.getId(), List.of()),
+                        historyByOrder.getOrDefault(order.getId(), List.of())))
+                .toList();
+        return new OrderResponses.OrderPage(page, size, total, items);
     }
 
-    /** 查询本人订单详情，非本人订单不可见。尚未实现。 */
+    /** 买家订单只按本人和可选状态筛选，排序在分页查询时追加，避免污染count查询。 */
+    private static QueryWrapper<OrderMain> buildListQuery(Long userId, OrderStatus status) {
+        return new QueryWrapper<OrderMain>()
+                .eq("user_id", userId)
+                .eq(status != null, "status", status);
+    }
+
+    /**
+     * 查询本人订单详情，非本人订单不可见。尚未实现。
+     */
     public OrderResponses.Order get(Long userId, String orderNo) {
         // TODO 查询订单并校验只能读取当前买家的订单。
         throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "订单详情功能尚未实现");
     }
 
-    /** 取消待支付订单并回补预扣库存。尚未实现。 */
+    /**
+     * 取消待支付订单并回补预扣库存。尚未实现。
+     */
     public OrderResponses.Order cancel(Long userId, String orderNo, OrderRequests.CancelOrder request) {
         // TODO 校验待支付状态，条件更新订单并释放预扣库存。
         throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "取消订单功能尚未实现");
     }
 
-    /** 已发货订单确认收货并记录历史。尚未实现。 */
+    /**
+     * 已发货订单确认收货并记录历史。尚未实现。
+     */
     public OrderResponses.Order confirm(Long userId, String orderNo) {
         // TODO 校验已发货状态，条件更新订单并记录确认收货历史。
         throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "确认收货功能尚未实现");
