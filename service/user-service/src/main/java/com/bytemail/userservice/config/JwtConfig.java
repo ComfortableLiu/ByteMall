@@ -1,13 +1,15 @@
 package com.bytemail.userservice.config;
 
+import com.bytemall.common.auth.DevJwtKeys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 
 import java.security.KeyFactory;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
@@ -29,12 +31,18 @@ public class JwtConfig {
     private String publicKeyPem;
 
     @Bean
-    public KeyPair jwtKeyPair() throws Exception {
+    public KeyPair jwtKeyPair(Environment environment) throws Exception {
         if (privateKeyPem.isEmpty()) {
-            log.warn("未配置jwt.rsa.private-key，生成临时RSA密钥对，服务重启后已签发的token将失效");
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
-            return generator.generateKeyPair();
+            // 回退到内置开发密钥，保证与其他服务共享同一验签公钥；生产环境必须显式配置。
+            if (environment.acceptsProfiles(Profiles.of("prod"))) {
+                throw new IllegalStateException(
+                        "生产环境必须配置jwt.rsa.private-key/JWT_RSA_PRIVATE_KEY，禁止使用内置开发密钥");
+            }
+            log.warn("未配置jwt.rsa.private-key，回退到内置开发密钥（仅限本地开发，禁止用于生产）");
+            privateKeyPem = DevJwtKeys.PRIVATE_KEY_PEM;
+            if (publicKeyPem.isEmpty()) {
+                publicKeyPem = DevJwtKeys.PUBLIC_KEY_PEM;
+            }
         }
 
         PrivateKey privateKey = parsePrivateKey(privateKeyPem);

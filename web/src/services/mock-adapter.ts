@@ -81,16 +81,12 @@ export class MockAdapter {
   }
 
   private buyer(): User {
-    const user = this.currentUser()
-    if (!user.roles.includes('BUYER')) {
-      throw new DomainError('FORBIDDEN', '当前身份没有买家权限', 403)
-    }
-    return user
+    return this.currentUser()
   }
 
   private merchant(): User {
     const user = this.currentUser()
-    if (!user.roles.includes('MERCHANT') || !user.merchantId) {
+    if (!user.merchantId || user.merchantId === '-1') {
       throw new DomainError('MERCHANT_REQUIRED', '请切换为商家身份后继续', 403)
     }
     return user
@@ -733,6 +729,43 @@ export class MockAdapter {
       createdAt: new Date().toISOString(),
     }
     this.state.applications.push(application)
+    this.commit()
+    return clone(application)
+  }
+
+  async approveMerchantApplication(applicationId: string): Promise<MerchantApplication> {
+    await this.wait()
+    const application = this.state.applications.find((item) => item.applicationId === applicationId)
+    if (!application) throw new DomainError('RESOURCE_NOT_FOUND', '入驻申请不存在', 404)
+    if (application.status === 'APPROVED') return clone(application)
+    if (application.status !== 'PENDING') throw new DomainError('INVALID_STATE_TRANSITION', '该申请已处理完毕', 409)
+    application.status = 'APPROVED'
+    application.rejectReason = undefined
+    // 一键通过即开通店铺，申请人立即获得商家身份。
+    const merchantId = this.nextId('merchant-')
+    const owner = Object.values(this.state.users).find((item) => item.userId === application.userId)
+    if (owner) owner.merchantId = merchantId
+    if (this.state.currentUser?.userId === application.userId) this.state.currentUser.merchantId = merchantId
+    this.state.shop = {
+      merchantId,
+      shopName: application.shopName,
+      contactName: application.contactName,
+      contactMobile: application.contactMobile,
+      status: 'ACTIVE',
+    }
+    this.commit()
+    return clone(application)
+  }
+
+  async rejectMerchantApplication(applicationId: string, reason: string): Promise<MerchantApplication> {
+    await this.wait()
+    const application = this.state.applications.find((item) => item.applicationId === applicationId)
+    if (!application) throw new DomainError('RESOURCE_NOT_FOUND', '入驻申请不存在', 404)
+    if (application.status === 'REJECTED') return clone(application)
+    if (application.status !== 'PENDING') throw new DomainError('INVALID_STATE_TRANSITION', '该申请已处理完毕', 409)
+    if (!reason.trim()) throw new DomainError('VALIDATION_ERROR', '驳回原因不能为空')
+    application.status = 'REJECTED'
+    application.rejectReason = reason.trim()
     this.commit()
     return clone(application)
   }

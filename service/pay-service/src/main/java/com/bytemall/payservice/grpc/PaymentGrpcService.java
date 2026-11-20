@@ -58,7 +58,7 @@ public class PaymentGrpcService extends PaymentServiceGrpc.PaymentServiceImplBas
     public void getPayment(GetPaymentRequest request, StreamObserver<GetPaymentResponse> responseObserver) {
         log.info("getPayment PayNo: {}", request.getPayNo());
         try {
-            responseObserver.onNext(paymentGetService.getPayment(request, 0L));
+            responseObserver.onNext(paymentGetService.getPayment(request));
             responseObserver.onCompleted();
         } catch (StatusRuntimeException exception) {
             responseObserver.onError(exception);

@@ -41,3 +41,7 @@ spring:
       properties:
         max.block.ms: ${KAFKA_MAX_BLOCK_MS:30000}
         request.timeout.ms: ${KAFKA_REQUEST_TIMEOUT:30000}
+
+grpc:
+  server:
+    port: ${PRODUCT_GRPC_PORT:9094}

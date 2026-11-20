@@ -4,18 +4,16 @@ import com.bytemall.stockservice.entity.StockMain;
 
 public class StocksResponses {
     /**
-     * 库存信息
+     * 公开库存视图，仅暴露可售量与版本，不透出总量和预扣量。
      *
-     * @param skuId
-     * @param total          总数
+     * @param skuId          SKU ID
      * @param availableStock 可用库存
-     * @param reservedStock  预售库存
      * @param version        版本号
      */
-    public record Sku(Long skuId, int total, int availableStock, int reservedStock, long version) {
+    public record Sku(String skuId, int availableStock, long version) {
         public static Sku of(StockMain stockMain) {
             if (stockMain == null) return null;
-            return new Sku(stockMain.getSkuId(), stockMain.getTotal(), stockMain.getAvailable(), stockMain.getReserved(), stockMain.getVersion());
+            return new Sku(stockMain.getSkuId().toString(), stockMain.getAvailable(), stockMain.getVersion());
         }
     }
 }

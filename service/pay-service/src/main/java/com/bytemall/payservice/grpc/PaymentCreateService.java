@@ -53,10 +53,12 @@ public class PaymentCreateService {
             }
         }
 
-        // 没有支付单，或最新支付单已关闭/失败时，才创建新的支付单
+        // 没有支付单，或最新支付单已关闭/失败时，才创建新的支付单。
+        // 订单上下文接入前gRPC创建暂用占位买家ID；REST路径使用JWT用户ID。
         PaymentResponses.Payment payment = paymentsService.create(
                 new PaymentRequests.CreatePayment(orderNo, channel),
-                ""
+                "",
+                123L
         );
         return response(payment);
     }

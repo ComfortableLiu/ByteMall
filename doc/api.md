@@ -129,10 +129,12 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | --- | --- | --- | --- | --- |
 | POST | `/merchants/applications` | BUYER | 201 `MerchantApplication` | 同一用户只允许一个待审核申请 |
 | GET | `/merchants/applications/current` | BUYER | 200 `MerchantApplication` | 无申请返回 `data: null` |
+| POST | `/merchants/applications/{applicationId}/approve` | 登录 | 200 `MerchantApplication` | 一键审核通过并开通店铺，重复审核幂等 |
+| POST | `/merchants/applications/{applicationId}/reject` | 登录 | 200 `MerchantApplication` | 一键驳回，`{reason}` 必填；重复驳回幂等 |
 | GET | `/merchant/shop` | MERCHANT | 200 `MerchantShop` | 当前商家店铺 |
 | PATCH | `/merchant/shop` | MERCHANT | 200 `MerchantShop` | 店铺名、Logo、联系信息；不修改审核状态 |
 
-入驻申请字段：`shopName`、`contactName`、`contactMobile`、`licenseNo`。审核接口属于平台运营后台，当前不开放给商家自行审核。
+入驻申请字段：`shopName`、`contactName`、`contactMobile`、`licenseNo`。审核为一键接口：通过后同事务创建商家店铺并回写 `reviewed_by`/`reviewed_at`，驳回必须写 `reason`；仅 `PENDING` 可审核，终态重复操作幂等返回。当前演示简化为任意登录账号可审核，生产环境须限制为平台运营角色。
 
 ## 4. product-service
 
@@ -156,6 +158,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | POST | `/merchant/products` | MERCHANT | 201 `ProductDetail` | 创建 SPU 和至少一个 SKU，默认 `DRAFT` |
 | POST | `/merchant/products/images` | MERCHANT | 201 `ImageUploadResult` | `multipart/form-data` 上传单张商品图片到阿里云 OSS |
 | GET | `/merchant/products/{spuId}` | MERCHANT | 200 `ProductDetail` | 可读取草稿/下架商品，但限本商家 |
+| GET | `/merchant/products/batch` | MERCHANT | 200 `ProductDetail[]` | 批量查询详情，`spuIds` 逗号分隔（1–100 个），一次请求替代逐个详情查询 |
 | PATCH | `/merchant/products/{spuId}` | MERCHANT | 200 `ProductDetail` | 携带 `version` 乐观锁；修改不影响订单快照 |
 | POST | `/merchant/products/{spuId}/status` | MERCHANT | 200 `ProductDetail` | `{status: ON_SALE|OFF_SALE, version}` |
 
@@ -276,7 +279,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 
 订单状态只能按状态机迁移；所有操作使用条件更新。客户端收到 409 后应重新查询，而不是循环提交。
 
-当前实现状态：买家 5 个、商家 3 个 Controller 及请求/响应 DTO 已建立，包含用户 ID 注入和参数校验；`OrderService`、`MerchantOrderService` 的持久化、状态机、gRPC 与事件逻辑尚未实现，有效请求目前返回 501。
+当前实现状态：`POST /orders` 已实现——幂等键查重与冲突检测、地址快照（`UserService.GetAddress`）、`ProductService.GetSkuBatch` 重新定价、整体库存预扣（失败自动回补）以及订单/明细/历史/幂等记录落库，同键同请求重放返回原订单。`GET /orders`（买家订单分页）与 `GET /merchant/orders`（商家订单分页）已实现——按买家/商家归属与状态筛选、创建时间倒序分页，明细与历史批量装配（商家侧另支持订单号/收件人/商品名关键词）。买家的详情、取消、确认收货与商家详情、发货接口尚未实现，有效请求仍返回 501。
 
 ## 8. stock-service
 
@@ -288,7 +291,9 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | GET | `/merchant/stocks` | MERCHANT | 200 `StockItem[]` | 当前商家库存，可按低库存筛选 |
 | PATCH | `/merchant/stocks/{skuId}` | MERCHANT | 200 `StockItem` | `{availableDelta, reason, version}`；结果不得为负 |
 
-商家调整库存会记录操作者和流水；不能用库存调整代替已有预扣单的释放/确认。
+商家调整库存会记录操作者、调整原因和流水；不能用库存调整代替已有预扣单的释放/确认。
+
+当前实现状态：公开查询、商家库存列表/调整、预扣/确认/释放 gRPC 已实现；MySQL 负责库存事务、幂等和防超卖，Redis Lua 仅在事务提交后同步缓存。商家身份通过 user-service 的有效 `merchantId` 判断，商品摘要通过 `ProductService.GetSkuBriefs` 补齐。公开旧路径 `/stocks/sku/{skuId}` 同时保留。
 
 ### 8.2 内部预扣命令
 

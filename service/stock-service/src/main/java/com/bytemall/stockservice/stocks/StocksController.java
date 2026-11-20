@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class StocksController {
     private final StocksService stocksService;
 
-    @GetMapping("/sku/{skuId}")
+    @GetMapping({"/sku/{skuId}", "/skus/{skuId}"})
     public ApiResponse<StocksResponses.Sku> getStockBySkuId(@PathVariable Long skuId) {
         return ApiResponse.ok(stocksService.getStockBySkuId(skuId));
     }

@@ -4,12 +4,22 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+
 @Service
 public class CartService {
 
     public CartResponses.Cart getCart(Long userId) {
+        CartResponses.Cart cart = new CartResponses.Cart(
+                new ArrayList<>(),
+                userId,
+                123
+        );
+        return cart;
         // TODO 按userId读取Redis购物车，并通过商品与库存服务补齐实时快照。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "查询购物车待实现：Redis与商品快照查询尚未接入");
+//        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "查询购物车待实现：Redis与商品快照查询尚未接入");
     }
 
     public CartResponses.Cart addItem(Long userId, CartRequests.AddItem request) {

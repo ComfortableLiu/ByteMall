@@ -595,6 +595,27 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProductResponse' }
         '400': { $ref: '#/components/responses/ValidationError' }
+  /merchant/products/batch:
+    get:
+      tags: [Product]
+      operationId: batchGetMerchantProducts
+      summary: 批量查询商品详情
+      description: 一次请求返回多个商品完整详情，替代逐个 GET /merchant/products/{spuId}；不存在或不属于本商家的 ID 忽略。
+      parameters:
+        - name: spuIds
+          in: query
+          required: true
+          description: 逗号分隔的商品 ID，1 到 100 个
+          schema: { type: string }
+      responses:
+        default: { $ref: '#/components/responses/DefaultError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '200':
+          description: 商品详情列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductDetailListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
   /merchant/products/images:
     post:
       tags: [Product]
@@ -758,7 +779,7 @@ paths:
           description: 可售库存
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/StockResponse' }
+              schema: { $ref: '#/components/schemas/StockViewResponse' }
         '404': { $ref: '#/components/responses/NotFound' }
   /merchant/stocks:
     get:
@@ -1085,15 +1106,12 @@ components:
         password: { type: string, minLength: 1, maxLength: 128, format: password }
     User:
       type: object
-      required: [userId, nickname, roles]
+      required: [userId, nickname]
       properties:
         userId: { type: string }
         nickname: { type: string }
         avatarUrl: { type: string }
-        roles:
-          type: array
-          items: { type: string, enum: [BUYER, MERCHANT, ADMIN] }
-        merchantId: { type: string }
+        merchantId: { type: string, description: 有效商家ID；空值或-1表示非商家 }
     AuthResult:
       type: object
       required: [accessToken, refreshToken, expiresIn, tokenType, user]
@@ -1315,6 +1333,14 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/ProductDetail' }
+    ProductDetailListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ProductDetail' }
     ImageUploadResult:
       type: object
       required: [url]
@@ -1503,6 +1529,19 @@ components:
         availableStock: { type: integer, minimum: 0 }
         reservedStock: { type: integer, minimum: 0 }
         version: { type: integer, minimum: 0 }
+    StockView:
+      type: object
+      required: [skuId, availableStock, version]
+      properties:
+        skuId: { type: string }
+        availableStock: { type: integer, minimum: 0 }
+        version: { type: integer, minimum: 0 }
+    StockViewResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/StockView' }
     StockResponse:
       allOf:
         - $ref: '#/components/schemas/SuccessResponse'

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -59,6 +60,14 @@ public class MerchantProductController {
             @RequestParam(name = "status", required = false) String status
     ) {
         return ApiResponse.ok(merchantProductService.getMerchantProductList(1L, page, size, status));
+    }
+
+    /** 批量查询商品完整详情，一次请求替代逐个GET /{spuId}；spuIds为逗号分隔，最多100个。 */
+    @GetMapping("/batch")
+    public ApiResponse<List<ProductResponses.ProductDetail>> batchGetProductDetails(
+            @RequestParam(name = "spuIds") List<Long> spuIds
+    ) {
+        return ApiResponse.ok(merchantProductService.getMerchantProductDetails(1L, spuIds));
     }
 
     @GetMapping("/{spuId}")

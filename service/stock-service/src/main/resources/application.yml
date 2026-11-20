@@ -6,10 +6,18 @@ bytemall:
     # 商品详情可展示可售库存；商家库存列表和调整接口仍需登录。
     public-get-paths:
       - /api/v1/stocks/sku/**
+      - /api/v1/stocks/skus/**
 
 grpc:
   server:
     port: ${STOCK_GRPC_PORT:9091}
+
+stock:
+  reservation:
+    timeout-scan:
+      fixed-delay-ms: ${STOCK_RESERVATION_TIMEOUT_SCAN_FIXED_DELAY_MS:60000}
+      initial-delay-ms: ${STOCK_RESERVATION_TIMEOUT_SCAN_INITIAL_DELAY_MS:60000}
+      batch-size: ${STOCK_RESERVATION_TIMEOUT_SCAN_BATCH_SIZE:100}
 
 spring:
   application:

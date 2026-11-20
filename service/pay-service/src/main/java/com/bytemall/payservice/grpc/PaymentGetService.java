@@ -16,19 +16,13 @@ public class PaymentGetService {
 
     private final PaymentsService paymentsService;
 
-    public GetPaymentResponse getPayment(GetPaymentRequest request, long userId) {
-        // 需要拿到用户信息，判断一下是否是当前用户的订单
-        PaymentResponses.Payment payment = paymentsService.get(request.getPayNo());
+    public GetPaymentResponse getPayment(GetPaymentRequest request) {
+        // 内部RPC只按支付单号查询可信状态；面向买家的归属校验在REST层完成。
+        PaymentResponses.Payment payment = paymentsService.find(request.getPayNo());
         if (payment == null) {
             log.error("支付单不存在");
             throw Status.NOT_FOUND
                     .withDescription("支付单不存在")
-                    .asRuntimeException();
-        }
-        if (payment.userId() != userId) {
-            log.error("用户无权限访问该订单");
-            throw Status.INVALID_ARGUMENT
-                    .withDescription("用户无权限访问该订单")
                     .asRuntimeException();
         }
         return response(payment);

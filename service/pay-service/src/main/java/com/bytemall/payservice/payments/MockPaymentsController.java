@@ -1,5 +1,6 @@
 package com.bytemall.payservice.payments;
 
+import com.bytemall.common.auth.CurrentUserId;
 import com.bytemall.common.model.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -17,7 +18,10 @@ public class MockPaymentsController {
     private final PaymentsService paymentsService;
 
     @PostMapping("/{payNo}/mock-complete")
-    public ApiResponse<PaymentResponses.Payment> complete(@PathVariable String payNo) {
-        return ApiResponse.ok(paymentsService.completeMock(payNo));
+    public ApiResponse<PaymentResponses.Payment> complete(
+            @PathVariable String payNo,
+            @CurrentUserId Long userId
+    ) {
+        return ApiResponse.ok(paymentsService.completeMock(payNo, userId));
     }
 }

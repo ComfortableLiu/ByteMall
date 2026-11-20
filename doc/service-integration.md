@@ -197,7 +197,7 @@ message CloseOrderResponse {
 
 处理逻辑：校验数量与 ID 格式 → 去重并保持顺序 → 批量查询 `stock_main` → 返回可售量和版本 → 将不存在的 ID 放入 `missing_sku_ids`。该接口只读，不修改库存。
 
-#### 4.1.2 `ReserveStock`（规划）
+#### 4.1.2 `ReserveStock`（服务端已实现）
 
 调用方：`order-service`。用途：创建订单时整体预扣多个 SKU。
 
@@ -214,7 +214,7 @@ message CloseOrderResponse {
 
 处理逻辑：校验数量与明细 → 校验幂等键和请求指纹 → 按固定顺序锁定/更新 SKU → 检查可售量 → 条件更新 `available`、`reserved` 和版本 → 同事务保存预扣单、明细及流水 → 返回 `RESERVED`。任一明细失败则整体回滚；库存不足返回 `RESOURCE_EXHAUSTED`，重复请求返回首次结果。
 
-#### 4.1.3 `ConfirmReservation`（规划）
+#### 4.1.3 `ConfirmReservation`（服务端已实现）
 
 调用方：订单支付事件处理器。用途：支付成功后将预扣转为确认扣减。
 
@@ -228,7 +228,7 @@ message CloseOrderResponse {
 
 处理逻辑：按预扣单号加锁查询 → 已确认则直接返回首次结果 → 已释放则返回 `FAILED_PRECONDITION` → 同时扣减 `total` 和 `reserved` 并递增版本 → 保存库存流水 → 返回确认结果。不得对同一预扣重复扣减。
 
-#### 4.1.4 `ReleaseReservation`（规划）
+#### 4.1.4 `ReleaseReservation`（服务端已实现）
 
 调用方：`order-service`。用途：订单取消或创建失败时回补预扣库存。
 
@@ -242,6 +242,22 @@ message CloseOrderResponse {
 | 出参 | `items` | `repeated ReservationItem` | 是 | 已回补明细 |
 
 处理逻辑：校验释放原因 → 加锁查询预扣单 → 已释放则幂等返回 → 已确认则返回 `FAILED_PRECONDITION` → 增加 `available`、减少 `reserved` 并递增版本 → 保存释放原因和流水 → 返回释放结果。禁止 `CONFIRMED → RELEASED`。
+
+当前实现使用 `INSERT IGNORE + FOR UPDATE` 处理预扣单并发幂等，以排序合并明细的 SHA-256 作为请求指纹；库存行按 SKU 顺序锁定，所有条件更新、预扣明细和流水处于同一事务。Redis Lua 在事务提交后同步库存 Hash 与短期操作标记，缓存失败只降级不影响 MySQL 结果。超时任务按批次释放到期 `RESERVED` 单。
+
+#### 4.1.5 `InitStocks`（服务端已实现）
+
+调用方：`product-service`。用途：商品创建后为新 SKU 批量初始化 0 库存行，补齐商家库存调整的入口数据。
+
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `items` | repeated `InitStockItem` | 是 | 1–100 项，每项 `sku_id`、`merchant_id` 均为正数 |
+| 出参 | `created_sku_ids` | repeated string | 是 | 本次新建库存行的 SKU |
+| 出参 | `existing_sku_ids` | repeated string | 是 | 库存行已存在、本次跳过的 SKU |
+
+处理逻辑：校验数量与 ID → 逐项 `INSERT IGNORE` 创建 `total=available=reserved=0` 的库存行 → 已存在的 SKU 幂等跳过并归入 `existing_sku_ids` → 返回创建/跳过清单。可安全重放，不会覆盖已有库存。
+
+当前实现由 `createDraft` 在商品、SKU 和图片落库后调用；初始化失败会使商品创建事务整体回滚，不会留下无库存行的 SKU。
 
 ### 4.2 PaymentService
 
@@ -312,7 +328,36 @@ message CloseOrderResponse {
 
 ### 4.3 UserService
 
-#### 4.3.1 `GetAddress`（规划）
+`user-service` 是用户资料、账号状态、地址和商家绑定的权威来源。以下接口统一放入 `user.proto` 的 `UserService`，由 `user-service` 进程直接提供 gRPC Server，默认端口为 `9093`，其他服务作为 Client 调用，不新增独立部署的“gRPC 服务”。仅需 JWT 中的用户 ID 时不调用本服务。
+
+#### 4.3.1 `GetUserContext`（服务端已实现）
+
+调用方：需要最新用户资料或账号状态的业务服务。用途：将 JWT 中的用户 ID 转换为最小必要的业务用户上下文，不返回完整账号记录。
+
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `user_id` | string | 是 | 从已验签 JWT 的 `sub` 解析出的用户 ID |
+| 出参 | `user_id` | string | 是 | 用户 ID |
+| 出参 | `nickname` | string | 是 | 用户昵称 |
+| 出参 | `avatar_url` | string | 否 | 头像 URL |
+| 出参 | `status` | string | 是 | 账号状态，例如 `ACTIVE`、`DISABLED` |
+| 出参 | `merchant_id` | string | 否 | 用户存在有效商家绑定时返回；空值或 `-1` 表示非商家 |
+
+处理逻辑：校验内部调用方服务身份 → 按 `user_id` 查询用户及有效商家绑定 → 用户不存在返回 `NOT_FOUND` → 返回当前账号状态和资料。调用方执行受保护业务时必须检查 `status == ACTIVE`；商家业务还必须取得有效 `merchant_id`，空值或 `-1` 均按非商家处理，不能只把“RPC 调用成功”视为具备商家权限。
+
+#### 4.3.2 `BatchGetUsers`（服务端已实现）
+
+调用方：订单、售后等需要批量补齐用户摘要的服务。用途：避免列表场景逐条调用造成 N+1；不得用该接口批量导出完整用户资料。
+
+| 方向 | 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| 入参 | `user_ids` | repeated string | 是 | 用户 ID，去重前最多 100 个，空列表直接返回 |
+| 出参 | `items` | repeated `UserSummary` | 是 | 按去重后的请求顺序返回已找到的用户 |
+| 出参 | `missing_user_ids` | repeated string | 是 | 未找到的用户 ID，不能悄悄忽略 |
+
+`UserSummary` 仅包含 `user_id`、`nickname`、`avatar_url`、`status`。处理逻辑：校验内部服务身份和数量上限 → 去重并批量查询 → 分别返回已找到项与缺失项。列表展示可以使用非实时缓存；涉及权限或资金的操作必须查询最新状态，不能使用摘要缓存代替权限校验。
+
+#### 4.3.3 `GetAddress`（服务端已实现）
 
 调用方：`order-service`。用途：读取买家地址并用于订单快照。
 
@@ -330,7 +375,7 @@ message CloseOrderResponse {
 
 处理逻辑：按 `address_id + user_id` 查询 → 不存在或不属于当前用户时返回 `NOT_FOUND`，避免暴露他人地址 → 返回完整地址 → 订单服务复制为快照，不依赖后续可变资料。
 
-#### 4.3.2 `ValidateMerchant`（规划）
+#### 4.3.4 `ValidateMerchant`（服务端已实现）
 
 调用方：`product-service`、`stock-service`、`order-service`、`pay-service`。用途：校验用户和商家的有效绑定。
 
@@ -345,9 +390,18 @@ message CloseOrderResponse {
 
 处理逻辑：查询商家及用户绑定 → 校验商家状态和绑定关系 → 返回 `valid=false` 或 `PERMISSION_DENIED`。不得只信任 JWT 或调用方传入的 `merchantId`；高频校验可使用带失效时间的短时缓存。
 
+`UserService` 统一约束：
+
+- 只返回业务必需字段，禁止返回密码哈希、刷新令牌、密钥或其他认证秘密。
+- gRPC 端口仅对内部网络开放，调用方使用 mTLS 或签名服务令牌证明服务身份；不能允许外部客户端仅凭任意 `user_id` 查询用户资料。
+- `GetUserContext`、`GetAddress` 和 `ValidateMerchant` 是业务数据查询，不承担 ACCESS Token 的验签或撤销检查。需要“注销后所有资源服务立即失效”时，另行定义 Token introspection 或共享 `tokenVersion` 校验契约。
+- 资料展示可以使用短时缓存，账号禁用、商家解绑和权限变更必须使缓存及时失效；权限敏感写操作不得以过期缓存为依据。
+
 ### 4.4 ProductService
 
-#### 4.4.1 `GetSkuBatch`（规划）
+商品服务由 `product-service` 进程直接提供 gRPC Server，默认端口为 `9094`。库存服务通过以下接口批量补齐商品摘要，不需要访问商品数据库。
+
+#### 4.4.1 `GetSkuBatch`（服务端已实现）
 
 调用方：`order-service`。用途：创建订单时重新定价并生成商品快照。
 
@@ -402,7 +456,7 @@ message CloseOrderResponse {
 
 处理逻辑：使用 `id > after_id ORDER BY id LIMIT size + 1` 游标扫描 → 按 `GetIndexDocument` 的相同规则批量组装文档 → 根据额外一条判断 `has_more` → 返回本批最后一个 ID 作为下一游标。禁止普通页码扫描导致数据变化时漏商品。
 
-#### 4.4.5 `GetSkuBriefs`（规划）
+#### 4.4.5 `GetSkuBriefs`（服务端已实现）
 
 调用方：`stock-service`。用途：商家库存页补齐商品和 SKU 信息。
 
