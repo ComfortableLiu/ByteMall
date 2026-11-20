@@ -1,6 +1,7 @@
 package com.bytemall.orderservice.orders;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.bytemall.orderservice.client.PaymentCloseClient;
 import com.bytemall.orderservice.client.ProductSkuClient;
 import com.bytemall.orderservice.client.StockReservationClient;
 import com.bytemall.orderservice.client.UserAddressClient;
@@ -57,6 +58,7 @@ public class OrderService {
     private final UserAddressClient userAddressClient;
     private final ProductSkuClient productSkuClient;
     private final StockReservationClient stockReservationClient;
+    private final PaymentCloseClient paymentCloseClient;
     private final OrderResponseAssembler orderResponseAssembler;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
@@ -360,7 +362,9 @@ public class OrderService {
     ) {
     }
 
-    /** 按当前买家和状态分页查询订单，创建时间倒序；明细和历史按页批量装配。 */
+    /**
+     * 按当前买家和状态分页查询订单，创建时间倒序；明细和历史按页批量装配。
+     */
     public OrderResponses.OrderPage list(Long userId, OrderStatus status, int page, int size) {
         long total = orderMainMapper.selectCount(buildListQuery(userId, status));
         if (total == 0) {
@@ -371,8 +375,8 @@ public class OrderService {
         List<OrderMain> orders = offset >= total
                 ? List.of()
                 : orderMainMapper.selectList(buildListQuery(userId, status)
-                        .orderByDesc("created_at", "id")
-                        .last("LIMIT " + size + " OFFSET " + offset));
+                .orderByDesc("created_at", "id")
+                .last("LIMIT " + size + " OFFSET " + offset));
         if (orders.isEmpty()) {
             return new OrderResponses.OrderPage(page, size, total, List.of());
         }
@@ -396,7 +400,9 @@ public class OrderService {
         return new OrderResponses.OrderPage(page, size, total, items);
     }
 
-    /** 买家订单只按本人和可选状态筛选，排序在分页查询时追加，避免污染count查询。 */
+    /**
+     * 买家订单只按本人和可选状态筛选，排序在分页查询时追加，避免污染count查询。
+     */
     private static QueryWrapper<OrderMain> buildListQuery(Long userId, OrderStatus status) {
         return new QueryWrapper<OrderMain>()
                 .eq("user_id", userId)
@@ -404,26 +410,99 @@ public class OrderService {
     }
 
     /**
-     * 查询本人订单详情，非本人订单不可见。尚未实现。
+     * 查询本人订单详情；不存在或非本人订单统一返回404，不暴露他人资源。
      */
     public OrderResponses.Order get(Long userId, String orderNo) {
-        // TODO 查询订单并校验只能读取当前买家的订单。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "订单详情功能尚未实现");
+        OrderMain order = orderMainMapper.selectOne(new QueryWrapper<OrderMain>().eq("user_id", userId).eq("order_no", orderNo));
+        if (order == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        }
+        // 明细和历史固定按id升序，保证规格顺序与状态时间线稳定。
+        return orderResponseAssembler
+                .toOrder(order,
+                        orderItemMapper.selectList(new QueryWrapper<OrderItem>().eq("order_id", order.getId()).orderByAsc("id")),
+                        orderStatusHistoryMapper.selectList(new QueryWrapper<OrderStatusHistory>().eq("order_id", order.getId()).orderByAsc("id")));
     }
 
     /**
-     * 取消待支付订单并回补预扣库存。尚未实现。
+     * 取消待支付订单：条件更新状态并记录历史，事务提交后回补预扣库存、关闭待支付支付单。
+     * 重复取消已取消订单幂等返回终态，其余状态按409拒绝。
      */
     public OrderResponses.Order cancel(Long userId, String orderNo, OrderRequests.CancelOrder request) {
-        // TODO 校验待支付状态，条件更新订单并释放预扣库存。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "取消订单功能尚未实现");
+        OrderMain order = orderMainMapper.selectOne(new QueryWrapper<OrderMain>()
+                .eq("user_id", userId)
+                .eq("order_no", orderNo));
+        if (order == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        }
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return loadOrder(orderNo);
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不能取消");
+        }
+
+        String reason = request == null || request.reason() == null || request.reason().isBlank()
+                ? "用户取消"
+                : request.reason();
+        LocalDateTime cancelledAt = LocalDateTime.now(ZoneOffset.UTC);
+
+        transactionTemplate.execute(status -> {
+            // 条件更新把并发的取消/支付挡在状态机上，0行说明状态已被其他流程改掉。
+            if (orderMainMapper.cancelPending(orderNo, reason, cancelledAt) != 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "订单状态已变化，请刷新后重试");
+            }
+            OrderStatusHistory history = new OrderStatusHistory();
+            history.setOrderId(order.getId());
+            history.setFromStatus(OrderStatus.PENDING_PAYMENT.name());
+            history.setToStatus(OrderStatus.CANCELLED.name());
+            history.setOperatorType(OrderResponses.OperatorType.BUYER.name());
+            history.setOperatorId(userId);
+            history.setReason(reason);
+            history.setCreatedAt(cancelledAt);
+            orderStatusHistoryMapper.insert(history);
+            return null;
+        });
+
+        // 补偿动作放在事务提交后：失败不影响取消结果，预扣由超时任务兜底释放。
+        stockReservationClient.releaseQuietly("RSV-" + orderNo, "USER");
+        paymentCloseClient.closeQuietly(orderNo);
+        return loadOrder(orderNo);
     }
 
     /**
-     * 已发货订单确认收货并记录历史。尚未实现。
+     * 已发货订单确认收货：条件更新状态并记录历史，纯本地状态机、无外部调用。
+     * 重复确认已完成订单幂等返回终态。
      */
     public OrderResponses.Order confirm(Long userId, String orderNo) {
-        // TODO 校验已发货状态，条件更新订单并记录确认收货历史。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "确认收货功能尚未实现");
+        OrderMain order = orderMainMapper.selectOne(new QueryWrapper<OrderMain>()
+                .eq("user_id", userId)
+                .eq("order_no", orderNo));
+        if (order == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        }
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            return loadOrder(orderNo);
+        }
+        if (order.getStatus() != OrderStatus.SHIPPED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不能确认收货");
+        }
+        LocalDateTime completedAt = LocalDateTime.now(ZoneOffset.UTC);
+        transactionTemplate.execute(status -> {
+            if (orderMainMapper.confirmShipped(orderNo, completedAt) != 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "订单状态已变化，请刷新后重试");
+            }
+            OrderStatusHistory history = new OrderStatusHistory();
+            history.setOrderId(order.getId());
+            history.setFromStatus(OrderStatus.SHIPPED.name());
+            history.setToStatus(OrderStatus.COMPLETED.name());
+            history.setOperatorType(OrderResponses.OperatorType.BUYER.name());
+            history.setOperatorId(userId);
+            history.setReason("买家确认收货");
+            history.setCreatedAt(completedAt);
+            orderStatusHistoryMapper.insert(history);
+            return null;
+        });
+        return loadOrder(orderNo);
     }
 }
