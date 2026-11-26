@@ -54,6 +54,7 @@ public class MerchantProductService {
         }
         // request.categoryId() 是前端传来的字符串，例如 "1"。
         Long categoryId = Long.parseLong(request.categoryId());
+
         // new ProductSpu() 创建一个 Java 对象。每个 set... 调用把一个值填进去。
         ProductSpu spu = new ProductSpu();
         spu.setMerchantId(merchantId);
@@ -350,9 +351,4 @@ public class MerchantProductService {
                 .toList();
         return productDetailReader.readBatch(orderedSpus, ProductDetailReader.SkuScope.ALL);
     }
-}
-
-
-
-
 }
