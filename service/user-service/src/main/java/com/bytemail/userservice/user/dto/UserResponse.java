@@ -3,8 +3,9 @@ package com.bytemail.userservice.user.dto;
 public record UserResponse(
 ) {
     /** merchantId为空或-1表示没有有效商家身份。 */
+    /** 对外ID统一序列化为字符串，前端按字符串比较。 */
     public record User(
-            long userId,
+            String userId,
             String nickname,
             String avatarUrl,
             String merchantId
@@ -20,8 +21,8 @@ public record UserResponse(
             String detailAddress,
             String postalCode,
             boolean isDefault,
-            long addressId,
-            long userId
+            String addressId,
+            String userId
     ){
     }
 }

@@ -114,7 +114,7 @@ Outbox/Inbox 表逻辑相同但由各服务私有，不能跨服务共用一张�
 | `discount_amount` | BIGINT | 优惠，分；当前默认 0 |
 | `payable_amount` | BIGINT | `item + freight - discount` |
 | `address_snapshot` | JSON | 收件人、电话、完整地址 |
-| `cancel_reason` | VARCHAR(64) | 可空 |
+| `cancel_reason` | VARCHAR(200) | 可空 |
 | `expire_at` | DATETIME(6) | 待支付截止时间 |
 | `paid_at` / `shipped_at` / `completed_at` / `cancelled_at` | DATETIME(6) | 可空 |
 | `version` | BIGINT | 状态条件更新 |

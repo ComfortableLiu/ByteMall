@@ -219,7 +219,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 | 方法 | 路径 | 权限 | 成功 | 说明 |
 | --- | --- | --- | --- | --- |
 | POST | `/orders` | BUYER | 201 `Order` | 需 `Idempotency-Key`；重新定价并整体预扣库存 |
-| GET | `/orders` | BUYER | 200 `Page<OrderSummary>` | 可按 `status` 筛选，按创建时间倒序 |
+| GET | `/orders` | BUYER | 200 `Page<Order>` | 可按 `status` 筛选，按创建时间倒序 |
 | GET | `/orders/{orderNo}` | BUYER | 200 `Order` | 只能读取本人订单 |
 | POST | `/orders/{orderNo}/cancel` | BUYER | 200 `Order` | 仅 `PENDING_PAYMENT`；`reason` 可空 |
 | POST | `/orders/{orderNo}/confirm` | BUYER | 200 `Order` | 仅 `SHIPPED`；确认收货 |
@@ -271,7 +271,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 
 | 方法 | 路径 | 权限 | 成功 | 说明 |
 | --- | --- | --- | --- | --- |
-| GET | `/merchant/orders` | MERCHANT | 200 `Page<OrderSummary>` | 仅当前商家，支持状态/关键词 |
+| GET | `/merchant/orders` | MERCHANT | 200 `Page<Order>` | 仅当前商家，支持状态/关键词 |
 | GET | `/merchant/orders/{orderNo}` | MERCHANT | 200 `Order` | 仅当前商家 |
 | POST | `/merchant/orders/{orderNo}/shipments` | MERCHANT | 200 `Order` | 仅 `PENDING_SHIPMENT` |
 
@@ -279,7 +279,7 @@ ACCESS Token 有效期为 **15 分钟**，REFRESH Token 有效期为 **30 天**�
 
 订单状态只能按状态机迁移；所有操作使用条件更新。客户端收到 409 后应重新查询，而不是循环提交。
 
-当前实现状态：`POST /orders` 已实现——幂等键查重与冲突检测、地址快照（`UserService.GetAddress`）、`ProductService.GetSkuBatch` 重新定价、整体库存预扣（失败自动回补）以及订单/明细/历史/幂等记录落库，同键同请求重放返回原订单。`GET /orders`（买家订单分页）与 `GET /merchant/orders`（商家订单分页）已实现——按买家/商家归属与状态筛选、创建时间倒序分页，明细与历史批量装配（商家侧另支持订单号/收件人/商品名关键词）。买家的详情、取消、确认收货与商家详情、发货接口尚未实现，有效请求仍返回 501。
+当前实现状态：`POST /orders` 已实现——幂等键查重与冲突检测、地址快照（`UserService.GetAddress`）、`ProductService.GetSkuBatch` 重新定价、整体库存预扣（失败自动回补）以及订单/明细/历史/幂等记录落库，同键同请求重放返回原订单。`GET /orders`（买家订单分页）、`GET /orders/{orderNo}`（买家订单详情）与 `GET /merchant/orders`（商家订单分页）已实现——按买家/商家归属与状态筛选、创建时间倒序分页，明细与历史批量装配（商家侧另支持订单号/收件人/商品名关键词）。`POST /orders/{orderNo}/cancel`（取消订单）已实现——仅 `PENDING_PAYMENT` 可取消（重复取消幂等）、条件更新防并发、记录状态历史，事务提交后回补预扣库存（`ReleaseReservation`）并关闭待支付支付单（`PaymentService.CloseOrder`）。`POST /orders/{orderNo}/confirm`（确认收货）已实现——仅 `SHIPPED` 可确认（重复确认幂等）、条件更新防并发并记录状态历史，无外部依赖。商家的订单详情已实现——商家归属校验后按 `merchant_id + order_no` 查询，跨商家订单统一 404 隐藏。发货接口已实现——仅 `PENDING_SHIPMENT` 可发货（同一物流单号重复发货幂等，不同单号 409）、`version` 乐观锁不匹配返回 409、条件更新防并发并记录状态历史。支付超时的 `PENDING_PAYMENT` 订单由调度任务自动关单（取消原因「支付超时」、SYSTEM 历史、回补预扣、关闭待支付支付单）。订单服务全部接口已完成。
 
 ## 8. stock-service
 

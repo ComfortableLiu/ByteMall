@@ -133,6 +133,10 @@ public class SearchService {
 
     public List<String> suggestions(String q) throws IOException {
         log.info("Searching suggestions for {}", q);
+        // 空关键词直接返回，避免ES用空串匹配出无意义建议。
+        if (q == null || q.isBlank()) {
+            return List.of();
+        }
         // 即使_source只包含title，它仍是JSON对象，不能直接按String反序列化。
         SearchResponse<ProductIndexDocument> response = elasticsearchClient.search(request -> {
             request.index(ProductIndexService.ALIAS)

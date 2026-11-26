@@ -25,4 +25,6 @@ public class ProductSpu {
     private String descriptionHtml;
     private Long salesCount;
     private LocalDateTime publishedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

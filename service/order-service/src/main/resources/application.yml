@@ -2,6 +2,12 @@ server:
   # 与网关路由表保持一致。
   port: ${ORDER_PORT:3002}
 
+order:
+  expire-scan:
+    fixed-delay-ms: ${ORDER_EXPIRE_SCAN_FIXED_DELAY_MS:60000}
+    initial-delay-ms: ${ORDER_EXPIRE_SCAN_INITIAL_DELAY_MS:60000}
+    batch-size: ${ORDER_EXPIRE_SCAN_BATCH_SIZE:100}
+
 spring:
   application:
     name: order-service

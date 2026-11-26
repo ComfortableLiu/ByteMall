@@ -429,7 +429,7 @@ message CloseOrderResponse {
 
 处理逻辑：批量读取商品和 SKU → 映射名称、图片、规格售价及上下架状态 → 保持去重后的请求顺序 → 返回缺失项。该结果只用于展示，订单创建仍需再次实时校验。
 
-#### 4.4.3 `GetIndexDocument`（规划）
+#### 4.4.3 `GetIndexDocument`（服务端已实现）
 
 调用方：`search-service`。用途：商品变更后获取完整索引读模型。
 

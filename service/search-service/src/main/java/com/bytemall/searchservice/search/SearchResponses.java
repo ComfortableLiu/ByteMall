@@ -96,14 +96,4 @@ public final class SearchResponses {
                     : aggregations;
         }
     }
-
-    /**
-     * 单条搜索建议。
-     *
-     * @param text 建议展示的搜索关键词
-     */
-    public record Suggestion(
-            String text
-    ) {
-    }
 }

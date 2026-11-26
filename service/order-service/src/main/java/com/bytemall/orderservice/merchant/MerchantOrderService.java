@@ -14,10 +14,14 @@ import com.bytemall.orderservice.orders.OrderStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -100,17 +104,71 @@ public class MerchantOrderService {
         return query;
     }
 
+    /** 商家订单详情：订单必须属于当前商家，不存在或跨商家统一返回404隐藏。 */
     public OrderResponses.Order get(Long userId, String orderNo) {
-        // TODO 根据userId解析商家归属，并校验订单属于当前商家。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "商家订单详情功能尚未实现");
+        Long merchantId = userContextClient.requireActiveMerchant(userId);
+        OrderMain order = orderMainMapper.selectOne(new QueryWrapper<OrderMain>()
+                .eq("merchant_id", merchantId)
+                .eq("order_no", orderNo));
+        if (order == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        }
+        // 明细和历史固定按id升序，保证规格顺序与状态时间线稳定。
+        return orderResponseAssembler.toOrder(order,
+                orderItemMapper.selectList(new QueryWrapper<OrderItem>()
+                        .eq("order_id", order.getId()).orderByAsc("id")),
+                orderStatusHistoryMapper.selectList(new QueryWrapper<OrderStatusHistory>()
+                        .eq("order_id", order.getId()).orderByAsc("id")));
     }
 
+    /**
+     * 商家发货：仅待发货订单可发，写入物流、发货时间和状态历史。
+     * 同一物流单号重复发货幂等返回，版本不匹配或状态不符按409拒绝。
+     */
+    @Transactional
     public OrderResponses.Order ship(
             Long userId,
             String orderNo,
             MerchantOrderRequests.Shipment request
     ) {
-        // TODO 校验商家归属、待发货状态和乐观锁版本，再写入物流及状态历史。
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "订单发货功能尚未实现");
+        Long merchantId = userContextClient.requireActiveMerchant(userId);
+        OrderMain order = orderMainMapper.selectOne(new QueryWrapper<OrderMain>()
+                .eq("merchant_id", merchantId)
+                .eq("order_no", orderNo));
+        if (order == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        }
+
+        String carrier = request.carrier().trim();
+        String trackingNo = request.trackingNo().trim();
+        // 重复请求只有同一物流单号才幂等返回；不同单号视为冲突，不能悄悄改物流。
+        if (order.getStatus() == OrderStatus.SHIPPED) {
+            if (Objects.equals(order.getCarrier(), carrier) && Objects.equals(order.getTrackingNo(), trackingNo)) {
+                return get(userId, orderNo);
+            }
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已发货，不能重复填写不同物流单号");
+        }
+        if (request.version() != null && !Objects.equals(request.version(), order.getVersion())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单版本已变化，请刷新后重试");
+        }
+        if (order.getStatus() != OrderStatus.PENDING_SHIPMENT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "只有待发货订单可以发货");
+        }
+
+        LocalDateTime shippedAt = LocalDateTime.now(ZoneOffset.UTC);
+        // 条件更新把并发的状态迁移挡在状态机上，0行说明状态已被其他流程改掉。
+        if (orderMainMapper.shipOrder(orderNo, carrier, trackingNo, shippedAt) != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单状态已变化，请刷新后重试");
+        }
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrderId(order.getId());
+        history.setFromStatus(OrderStatus.PENDING_SHIPMENT.name());
+        history.setToStatus(OrderStatus.SHIPPED.name());
+        history.setOperatorType(OrderResponses.OperatorType.MERCHANT.name());
+        history.setOperatorId(userId);
+        history.setReason(carrier + " " + trackingNo);
+        history.setCreatedAt(shippedAt);
+        orderStatusHistoryMapper.insert(history);
+        return get(userId, orderNo);
     }
 }

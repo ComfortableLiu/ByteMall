@@ -1,10 +1,13 @@
 package com.bytemall.productservice.grpc;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.bytemall.product.proto.GetIndexDocumentRequest;
+import com.bytemall.product.proto.GetIndexDocumentResponse;
 import com.bytemall.product.proto.GetSkuBatchRequest;
 import com.bytemall.product.proto.GetSkuBatchResponse;
 import com.bytemall.product.proto.GetSkuBriefsRequest;
 import com.bytemall.product.proto.GetSkuBriefsResponse;
+import com.bytemall.product.proto.ProductIndexDocument;
 import com.bytemall.product.proto.ProductServiceGrpc;
 import com.bytemall.product.proto.ProductSkuInfo;
 import com.bytemall.product.proto.SkuBrief;
@@ -20,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -79,6 +83,91 @@ public class ProductGrpcService extends ProductServiceGrpc.ProductServiceImplBas
                     .withDescription("查询SKU快照失败")
                     .asRuntimeException());
         }
+    }
+
+    /**
+     * 搜索索引读模型：SPU+SKU+主图组装完整文档，价格只取启用SKU，描述HTML转纯文本。
+     * 商品不存在时返回空document，由调用方决定删除索引。
+     */
+    @Override
+    public void getIndexDocument(
+            GetIndexDocumentRequest request,
+            StreamObserver<GetIndexDocumentResponse> responseObserver
+    ) {
+        try {
+            responseObserver.onNext(queryIndexDocument(request));
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException exception) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(exception.getMessage())
+                    .asRuntimeException());
+        } catch (RuntimeException exception) {
+            log.error("Failed to get index document", exception);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("查询索引文档失败")
+                    .asRuntimeException());
+        }
+    }
+
+    private GetIndexDocumentResponse queryIndexDocument(GetIndexDocumentRequest request) {
+        long spuId;
+        try {
+            spuId = Long.parseLong(request.getSpuId());
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("spuId必须为数字字符串");
+        }
+        if (spuId <= 0) {
+            throw new IllegalArgumentException("spuId必须为正整数");
+        }
+
+        ProductSpu spu = productSpuMapper.selectById(spuId);
+        if (spu == null) {
+            return GetIndexDocumentResponse.getDefaultInstance();
+        }
+
+        List<ProductSku> skuRows = productSkuMapper.selectList(Wrappers.<ProductSku>lambdaQuery()
+                .eq(ProductSku::getSpuId, spuId)
+                .orderByAsc(ProductSku::getId));
+        long minPrice = Long.MAX_VALUE;
+        long maxPrice = 0L;
+        for (ProductSku sku : skuRows) {
+            if (!Boolean.TRUE.equals(sku.getEnabled()) || sku.getPrice() == null) {
+                continue;
+            }
+            minPrice = Math.min(minPrice, sku.getPrice());
+            maxPrice = Math.max(maxPrice, sku.getPrice());
+        }
+        if (minPrice == Long.MAX_VALUE) {
+            minPrice = 0L;
+        }
+
+        String coverImage = queryPrimaryImages(Set.of(spu.getId())).getOrDefault(spu.getId(), "");
+        ProductIndexDocument document = ProductIndexDocument.newBuilder()
+                .setSpuId(String.valueOf(spu.getId()))
+                .setMerchantId(spu.getMerchantId() == null ? "" : String.valueOf(spu.getMerchantId()))
+                .setCategoryId(spu.getCategoryId() == null ? "" : String.valueOf(spu.getCategoryId()))
+                .setBrand(nullToEmpty(spu.getBrand()))
+                .setCoverImage(coverImage)
+                .setTitle(nullToEmpty(spu.getTitle()))
+                .setSubtitle(nullToEmpty(spu.getSubtitle()))
+                .setDescriptionText(toPlainText(spu.getDescriptionHtml()))
+                .setMinPrice(minPrice)
+                .setMaxPrice(maxPrice)
+                .setSalesCount(spu.getSalesCount() == null ? 0L : spu.getSalesCount())
+                .setStatus(nullToEmpty(spu.getStatus()))
+                .setPublishedAt(spu.getPublishedAt() == null ? "" : spu.getPublishedAt().toInstant(ZoneOffset.UTC).toString())
+                .setUpdatedAt(spu.getUpdatedAt() == null ? "" : spu.getUpdatedAt().toInstant(ZoneOffset.UTC).toString())
+                .setVersion(spu.getVersion() == null ? 0L : spu.getVersion())
+                .build();
+        return GetIndexDocumentResponse.newBuilder().setDocument(document).build();
+    }
+
+    /** 描述HTML去除标签并压缩空白，作为搜索索引的纯文本字段。 */
+    private static String toPlainText(String html) {
+        if (html == null || html.isBlank()) {
+            return "";
+        }
+        return html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
     }
 
     /**

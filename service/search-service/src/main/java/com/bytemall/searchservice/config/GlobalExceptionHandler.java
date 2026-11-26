@@ -1,4 +1,4 @@
-package com.bytemall.stockservice.config;
+package com.bytemall.searchservice.config;
 
 import com.bytemall.common.model.dto.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -12,33 +12,44 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.util.stream.Collectors;
 
-@RestControllerAdvice(basePackages = "com.bytemall.stockservice.merchant")
-public class MerchantExceptionHandler {
+/** 将业务异常统一转换为ApiResponse；ES不可用按503返回，避免掉进/error被认证入口覆盖。 */
+@RestControllerAdvice
+public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<ApiResponse<Void>> handleResponseStatusException(
-            ResponseStatusException exception
-    ) {
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatusException(ResponseStatusException exception) {
         String message = exception.getReason() == null ? "请求处理失败" : exception.getReason();
         return ResponseEntity.status(exception.getStatusCode())
                 .body(ApiResponse.fail(exception.getStatusCode().value(), message));
     }
 
+    /** ES读写失败视为依赖不可用，返回503而不是裸500。 */
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIoException(IOException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.fail(HttpStatus.SERVICE_UNAVAILABLE.value(), "搜索服务暂时不可用，请稍后重试"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidationException(
-            MethodArgumentNotValidException exception
-    ) {
+    public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException exception) {
         String message = exception.getBindingResult().getAllErrors().stream()
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
                 .filter(value -> value != null && !value.isBlank())
                 .distinct()
                 .collect(Collectors.joining("; "));
-        if (message.isBlank()) {
-            message = "请求参数校验失败";
-        }
-        return badRequest(message);
+        return badRequest(message.isBlank() ? "请求参数校验失败" : message);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException exception) {
+        String message = exception.getConstraintViolations().stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                .distinct()
+                .collect(Collectors.joining("; "));
+        return badRequest(message.isBlank() ? "请求参数校验失败" : message);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -47,21 +58,8 @@ public class MerchantExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
-            MethodArgumentTypeMismatchException exception
-    ) {
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
         return badRequest("请求参数类型不正确: " + exception.getName());
-    }
-
-    @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(
-            ConstraintViolationException exception
-    ) {
-        String message = exception.getConstraintViolations().stream()
-                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
-                .distinct()
-                .collect(Collectors.joining("; "));
-        return badRequest(message.isBlank() ? "请求参数校验失败" : message);
     }
 
     private static ResponseEntity<ApiResponse<Void>> badRequest(String message) {
