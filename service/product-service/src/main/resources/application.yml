@@ -30,6 +30,18 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:12341234}
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:123.56.201.124:9900}
+    producer:
+      client-id: ${KAFKA_PRODUCER_CLIENT_ID:product-service-producer}
+      retries: ${KAFKA_RETRY_COUNT:3}
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        max.block.ms: ${KAFKA_MAX_BLOCK_MS:30000}
+        request.timeout.ms: ${KAFKA_REQUEST_TIMEOUT:30000}
+
 grpc:
   server:
     port: ${PRODUCT_GRPC_PORT:9094}

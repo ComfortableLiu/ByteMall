@@ -14,13 +14,20 @@ import com.bytemall.productservice.products.ProductStockClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,6 +44,8 @@ public class MerchantProductService {
     private final ProductListReader productListReader;
     private final ProductStockClient productStockClient;
 
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
     //1. @Transactional 给这个方法划出事务边界。后面把 SKU 和图片写入也加进来，就可以一起提交、一起回滚。
     @Transactional
     public Long createDraft(Long merchantId, CreateProductRequest request) {
@@ -45,6 +54,7 @@ public class MerchantProductService {
         }
         // request.categoryId() 是前端传来的字符串，例如 "1"。
         Long categoryId = Long.parseLong(request.categoryId());
+
         // new ProductSpu() 创建一个 Java 对象。每个 set... 调用把一个值填进去。
         ProductSpu spu = new ProductSpu();
         spu.setMerchantId(merchantId);
@@ -138,6 +148,191 @@ public class MerchantProductService {
         return productDetailReader.read(spu, ProductDetailReader.SkuScope.ALL);
     }
 
+    //    @Transactional 给这个方法划出事务边界。后面把 SKU 和图片写入也加进来，就可以一起提交、一起回滚。
+    @Transactional
+    public Optional<ProductResponses.ProductDetail> updateProductStatus(
+            Long merchantId, Long spuId, UpdateProductStatusRequest request
+    ) {
+        ProductSpu spu = productSpuMapper.selectOne(
+                Wrappers.<ProductSpu>lambdaQuery()
+                        .eq(ProductSpu::getId, spuId)
+                        .eq(ProductSpu::getMerchantId, merchantId));
+        if (spu == null) {
+            return Optional.empty();
+        }
+        String targetStatus = request.status().name();
+//        判断要更新的状态是否和数据库里的状态不一致，不一致才走后续更新逻辑
+        if (!targetStatus.equals(spu.getStatus())) {
+            if ("DRAFT".equals(spu.getStatus()) && "OFF_SALE".equals(targetStatus)) {
+                throw new StatusConflict("INVALID_PRODUCT_STATUS", "草稿商品需要先上架");
+            }
+
+            var update = Wrappers.<ProductSpu>lambdaUpdate()
+                    .eq(ProductSpu::getId, spuId)
+                    .eq(ProductSpu::getMerchantId, merchantId)
+                    .eq(ProductSpu::getVersion, request.version())
+                    .set(ProductSpu::getStatus, targetStatus)
+                    .setSql("version = version + 1");
+            if ("ON_SALE".equals(targetStatus) && spu.getPublishedAt() == null) {
+                update.set(ProductSpu::getPublishedAt, LocalDateTime.now(ZoneOffset.UTC));
+            }
+            if (productSpuMapper.update(null, update) == 0) {
+                throw new StatusConflict("PRODUCT_VERSION_CONFLICT", "商品已更新，请刷新后重试");
+            }
+
+            // 接入搜索同步时，在此处写入同一事务内的 ProductChanged Outbox 记录。
+
+            publishProductChangedAfterCommit(spuId, request.version() + 1);
+        }
+        // 现有详情读取器在商品没有 SKU 时返回空。抛异常可回滚本次更新。
+        return Optional.of(getProductDetail(merchantId, spuId)
+                .orElseThrow(() -> new StatusConflict(
+                        "PRODUCT_HAS_NO_SKU", "商品缺少 SKU，无法返回商品详情")));
+    }
+
+    static final class StatusConflict extends RuntimeException {
+        private final String code;
+
+        StatusConflict(String code, String message) {
+            super(message);
+            this.code = code;
+        }
+
+        String code() {
+            return code;
+        }
+    }
+
+    private void publishProductChangedAfterCommit(Long spuId, long version) {
+        String productId = spuId.toString();
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(Map.of(
+                    "eventId", UUID.randomUUID().toString(),
+                    "eventType", "ProductChanged",
+                    "aggregateType", "PRODUCT",
+                    "aggregateId", productId,
+                    "version", version,
+                    "occurredAt", Instant.now().toString()
+            ));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法序列化商品变更事件", e);
+        }
+//registerSynchronization 把回调注册到当前事务，所以要在外层 @Transactional 方法执行期间调用。
+        TransactionSynchronizationManager.registerSynchronization(
+// 创建一个匿名实现，里面定义了要在事务的哪个阶段做什么。
+//@Override 表示下面的方法覆盖了接口提供的 afterCommit()。
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        kafkaTemplate.send("product-changed", productId, payload)
+                                .whenComplete((result, error) -> {
+                                    if (error != null) {
+                                        org.slf4j.LoggerFactory.getLogger(MerchantProductService.class)
+                                                .error("商品变更事件发送失败，spuId={}，version={}",
+                                                        productId, version, error);
+                                    }
+                                });
+                    }
+                });
+    }
+
+    @Transactional
+    public Optional<ProductResponses.ProductDetail> updateProduct(Long merchantId, Long spuId, UpdateProductRequest request) {
+        ProductSpu spu = productSpuMapper.selectOne(Wrappers.<ProductSpu>lambdaQuery()
+                .eq(ProductSpu::getId, spuId)
+                .eq(ProductSpu::getMerchantId, merchantId));
+        if (spu == null) {
+            return Optional.empty();
+        }
+        long categoryId = Long.parseLong(request.categoryId());
+        String descriptionHtml = org.jsoup.Jsoup.clean(
+                request.descriptionHtml(), org.jsoup.safety.Safelist.relaxed());
+
+        int changed = productSpuMapper.update(null, Wrappers.<ProductSpu>lambdaUpdate()
+                .eq(ProductSpu::getId, spuId)
+                .eq(ProductSpu::getMerchantId, merchantId)
+                .eq(ProductSpu::getVersion, request.version())
+                .set(ProductSpu::getCategoryId, categoryId)
+                .set(ProductSpu::getTitle, request.title())
+                .set(ProductSpu::getSubtitle, request.subtitle())
+                .set(ProductSpu::getBrand, request.brand())
+                .set(ProductSpu::getDescriptionHtml, descriptionHtml)
+                .setSql("version = version + 1"));
+
+        if (changed == 0) {
+            throw new StatusConflict("PRODUCT_VERSION_CONFLICT", "商品已更新，请刷新后重试");
+        }
+        Map<Long, ProductSku> existingSkus = new HashMap<>();
+        for (ProductSku sku : productSkuMapper.selectList(Wrappers.<ProductSku>lambdaQuery()
+                .eq(ProductSku::getSpuId, spuId))) {
+            existingSkus.put(sku.getId(), sku);
+        }
+
+        Set<Long> submittedIds = new HashSet<>();
+        for (UpdateProductRequest.SkuUpdate input : request.skus()) {
+            if (input.skuId() != null) {
+                long skuId = Long.parseLong(input.skuId());
+                if (!existingSkus.containsKey(skuId) || !submittedIds.add(skuId)) {
+                    throw new IllegalArgumentException("SKU ID 重复或不属于当前商品");
+                }
+            }
+        }
+
+        for (UpdateProductRequest.SkuUpdate input : request.skus()) {
+            saveUpdatedSku(spuId, input);
+        }
+
+        productImageMapper.delete(Wrappers.<ProductImage>lambdaQuery()
+                .eq(ProductImage::getSpuId, spuId));
+        for (CreateProductRequest.ImageRequest input : request.images()) {
+            ProductImage image = new ProductImage();
+            image.setSpuId(spuId);
+            image.setUrl(input.url());
+            image.setAltText(input.altText() == null ? "" : input.altText());
+            image.setSortOrder(input.sortOrder() == null ? 0 : input.sortOrder());
+            image.setPrimaryImage(Boolean.TRUE.equals(input.isPrimary()));
+            productImageMapper.insert(image);
+        }
+
+        var detail = getProductDetail(merchantId, spuId).orElseThrow(
+                () -> new StatusConflict("PRODUCT_HAS_NO_SKU", "商品缺少 SKU，无法返回商品详情"));
+        publishProductChangedAfterCommit(spuId, request.version() + 1);
+        return Optional.of(detail);
+    }
+
+    private void saveUpdatedSku(long spuId, UpdateProductRequest.SkuUpdate input) {
+        String specJson;
+        try {
+            specJson = objectMapper.writeValueAsString(new TreeMap<>(input.specs()));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法序列化 SKU 规格", e);
+        }
+        byte[] specHash = hashSpecs(specJson);
+
+        if (input.skuId() == null) {
+            ProductSku sku = new ProductSku();
+            sku.setSpuId(spuId);
+            sku.setSkuCode(input.skuCode());
+            sku.setSpecJson(specJson);
+            sku.setSpecHash(specHash);
+            sku.setPrice(input.price());
+            sku.setOriginalPrice(input.originalPrice());
+            sku.setEnabled(input.enabled());
+            productSkuMapper.insert(sku);
+            return;
+        }
+
+        productSkuMapper.update(null, Wrappers.<ProductSku>lambdaUpdate()
+                .eq(ProductSku::getId, Long.parseLong(input.skuId()))
+                .eq(ProductSku::getSpuId, spuId)
+                .set(ProductSku::getSkuCode, input.skuCode())
+                .set(ProductSku::getSpecJson, specJson)
+                .set(ProductSku::getSpecHash, specHash)
+                .set(ProductSku::getPrice, input.price())
+                .set(ProductSku::getOriginalPrice, input.originalPrice())
+                .set(ProductSku::getEnabled, input.enabled()));
+    }
     /** 批量查询本商家指定SPU的完整详情；不存在或不属于本商家的ID自动忽略，结果按请求顺序返回。 */
     public List<ProductResponses.ProductDetail> getMerchantProductDetails(Long merchantId, List<Long> spuIds) {
         if (spuIds == null || spuIds.isEmpty()) {
@@ -159,5 +354,4 @@ public class MerchantProductService {
                 .toList();
         return productDetailReader.readBatch(orderedSpus, ProductDetailReader.SkuScope.ALL);
     }
-
 }
